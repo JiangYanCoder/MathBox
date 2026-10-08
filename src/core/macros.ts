@@ -66,6 +66,15 @@ const MACRO_RULES: readonly MacroRule[] = [
 	{ re: /\\HH(?![a-zA-Z])/g, to: '\\mathbb{H}' },
 	{ re: /\\eps(?![a-zA-Z])/g, to: '\\varepsilon' },
 	{ re: /\\half(?![a-zA-Z])/g, to: '\\tfrac{1}{2}' },
+	// 单位与角度符号（gensymb 包；均为非标准命令，展开后与包内定义等价）
+	{ re: /\\degree(?![a-zA-Z])/g, to: '^{\\circ}' },
+	{ re: /\\celsius(?![a-zA-Z])/g, to: '^{\\circ}\\mathrm{C}' },
+	{ re: /\\ohm(?![a-zA-Z])/g, to: '\\Omega' },
+	{ re: /\\micro(?![a-zA-Z])/g, to: '\\mu' },
+	// 注意：\boldsymbol 有意**不**在此展开 —— 它是标准 LaTeX（amsmath/amsbsy），
+	// 由 MathJax 的 boldsymbol 扩展提供；展开成 \mathbf 会改变语义
+	// （\mathbf 不加粗希腊字母，\boldsymbol{\alpha} 会退化成不粗的 α）。
+	// 该宏是否可用取决于宿主与扩展包开关，见 scripts/selftest.ts 的说明。
 ] as const;
 
 /** 展开非标准宏；未命中时原样返回 */
