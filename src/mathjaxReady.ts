@@ -36,14 +36,3 @@ export function ensureMathJax(): Promise<void> {
 	}
 	return pending;
 }
-
-/** 宿主 MathJax 是否可用（供诊断与设置页展示） */
-export function isMathJaxReady(): boolean {
-	const mj = (window as unknown as { MathJax?: { tex2chtml?: unknown } }).MathJax;
-	return typeof mj?.tex2chtml === 'function';
-}
-
-/** 测试与异常恢复用：清空等待状态（正常流程无需调用） */
-export function resetMathJaxGate(): void {
-	pending = null;
-}

@@ -11,12 +11,6 @@ export const en: Record<I18nKey, string> = {
 	'common.close': 'Close',
 	'common.delete': 'Delete',
 	'common.rename': 'Rename',
-	'common.insert': 'Insert',
-	'common.search': 'Search',
-	'common.copy': 'Copy',
-	'common.clear': 'Clear',
-	'common.reset': 'Reset to default',
-	'common.default': 'Default',
 
 	// ---- top bar ----
 	'panel.title': 'MathBox',

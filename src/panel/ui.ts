@@ -5,7 +5,7 @@
  *  · windowIcon          —— 宿主同款 12×12 窗口控件 SVG（min/max/restore/close）
  *  · makeEl / setBtnIcon —— DOM 创建与图标注入辅助
  *  · 按钮 / 下拉构造      —— windowControlButton / iconButton / buildSelect 等
- *  · clamp / isDarkTheme —— 数值与主题小工具
+ *  · clamp —— 数值小工具
  */
 
 import { setIcon } from 'obsidian';
@@ -18,17 +18,13 @@ export const Icons = {
 	sideToggle: 'sidebar-toggle-button-icon',
 	star: 'star',
 	settings: 'settings',
-	plus: 'plus',
 	download: 'download',
 	copy: 'copy',
 	eraser: 'eraser',
-	search: 'search',
 	pin: 'pin',
 	unpin: 'pin-off',
 	pencil: 'pencil',
 	trash: 'trash-2',
-	upload: 'upload',
-	alert: 'alert-triangle',
 	chevronDown: 'chevron-down',
 } as const;
 
@@ -160,24 +156,6 @@ export function iconButton(
 	return btn;
 }
 
-/** 带图标的文字按钮 */
-export function textIconButton(
-	iconName: string,
-	label: string,
-	options: IconButtonOptions = {},
-): HTMLButtonElement {
-	const btn = makeEl('button', {
-		cls: `mathbox-btn is-text ${options.cls ?? ''}`.trim(),
-		attr: { type: 'button', 'aria-label': label },
-		...(options.parent ? { parent: options.parent } : {}),
-	});
-	btn.title = label;
-	const holder = makeEl('span', { cls: 'mathbox-icon', parent: btn });
-	setIcon(holder, iconName);
-	makeEl('span', { text: label, parent: btn });
-	return btn;
-}
-
 export interface SelectOption {
 	value: string;
 	label: string;
@@ -210,9 +188,4 @@ export function clamp(value: number, min: number, max: number): number {
 	if (value < min) return min;
 	if (value > max) return max;
 	return value;
-}
-
-/** 是否处于暗色主题（用于导出时的底色处理等场景） */
-export function isDarkTheme(): boolean {
-	return document.body.classList.contains('theme-dark');
 }

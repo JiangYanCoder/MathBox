@@ -41,7 +41,7 @@ export const SYMBOL_GROUPS: SymbolGroup[] = [
 			s('ι', '\\iota'), s('κ', '\\kappa'), s('λ', '\\lambda'), s('μ', '\\mu'),
 			s('ν', '\\nu'), s('ξ', '\\xi'), s('π', '\\pi'), s('ρ', '\\rho'),
 			s('σ', '\\sigma'), s('τ', '\\tau'), s('υ', '\\upsilon'), s('φ', '\\phi'),
-			s('χ', '\\chi'), s('ψ', '\\psi'), s('ω', '\\omega'), s('ε', '\\varepsilon'),
+			s('χ', '\\chi'), s('ψ', '\\psi'), s('ω', '\\omega'), s('ϵ', '\\varepsilon'),
 			s('ϑ', '\\vartheta'), s('ϖ', '\\varpi'), s('ϱ', '\\varrho'), s('ς', '\\varsigma'),
 			s('ϕ', '\\varphi'), s('Γ', '\\Gamma'), s('Δ', '\\Delta'), s('Θ', '\\Theta'),
 			s('Λ', '\\Lambda'), s('Ξ', '\\Xi'), s('Π', '\\Pi'), s('Σ', '\\Sigma'),
