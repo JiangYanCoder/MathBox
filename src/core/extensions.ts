@@ -404,17 +404,21 @@ export function applyExtensionInjection(
  * 随后脚本启动读取的便是合并后的配置，扩展包因此真正生效。
  *
  * 只在 MathJax 尚未启动时合并；已启动则写入无效且可能冲突。
+ *
+ * @returns 还原函数：卸载插件时必须调用，否则访问器会一直挂在 window 上
+ *          （既吊住插件实例不放，又让已卸载的插件继续改宿主配置）。见下方注释。
  */
 export function installMathJaxConfigGuard(
 	getEnabled: () => Readonly<Record<string, boolean>>,
-): void {
+): () => void {
 	const w = window as unknown as { MathJax?: MathJaxConfigSlice };
 	let value: MathJaxConfigSlice | undefined = w.MathJax;
+	const getter = (): MathJaxConfigSlice | undefined => value;
 
 	Object.defineProperty(w, 'MathJax', {
 		configurable: true,
 		enumerable: true,
-		get: () => value,
+		get: getter,
 		set: (next: MathJaxConfigSlice | undefined) => {
 			value = next;
 			try {
@@ -429,6 +433,32 @@ export function installMathJaxConfigGuard(
 			}
 		},
 	});
+
+	/**
+	 * 还原：把访问器换回**普通数据属性**，值取「当前」的 window.MathJax。
+	 *
+	 * 两个关键点：
+	 *  · 不能还原成安装前的那份描述符 —— 那时宿主多半已经把真正的 MathJax 对象
+	 *    写进来了（甚至已经启动），还原成 undefined 会连带抹掉宿主的 MathJax，
+	 *    直接砸掉整个 vault 的公式渲染，比「不清理」严重得多；
+	 *  · `writable: true` 必须给 —— 否则属性变成只读，宿主此后无法再赋值自己的
+	 *    MathJax 配置。
+	 *
+	 * 转成数据属性之后，宿主后续的赋值不再经过我们的 setter，被禁用的插件
+	 * 也就不会再改宿主的配置。
+	 *
+	 * 幂等且克制：仅当该属性仍是本函数安装的那个 getter 时才动手；
+	 * 若已被宿主或其它插件改写（都允许，因为 configurable 为真）则直接放手。
+	 */
+	return () => {
+		if (Object.getOwnPropertyDescriptor(w, 'MathJax')?.get !== getter) return;
+		Object.defineProperty(w, 'MathJax', {
+			configurable: true,
+			enumerable: true,
+			writable: true,
+			value,
+		});
+	};
 }
 
 /**
@@ -438,17 +468,28 @@ export function installMathJaxConfigGuard(
  * 这中间有数十到数百毫秒窗口。此处按 0/30/80/200/500/1200 ms 轮询：
  * 只要 MathJax 尚未启动就补写一次 packages，命中窗口即可真正生效；
  * 一旦检测到已启动则停止（此时写入无效且可能冲突）。
+ *
+ * @returns 取消函数：清除尚未触发的定时器。**重新调度前与插件卸载时都必须调用**——
+ *  · 卸载时不取消，定时器会在插件已卸载后继续写 window.MathJax；
+ *  · 重新调度前不取消，设置页连点开关会叠出多轮定时器，而每轮的 enabled 是
+ *    当时的快照、merge 又只做并集，于是「刚关掉的包」会被更早那轮并回去。
  */
-export function scheduleDeferredInjection(enabled: Readonly<Record<string, boolean>>): void {
-	const delays = [0, 30, 80, 200, 500, 1200];
-	for (const ms of delays) {
+export function scheduleDeferredInjection(
+	enabled: Readonly<Record<string, boolean>>,
+): () => void {
+	const timers = [0, 30, 80, 200, 500, 1200].map((ms) =>
 		window.setTimeout(() => {
 			if (isMathJaxLoaded()) return;
 			const plan = buildInjectionPlan(enabled, true);
 			if (plan.load.length === 0 && Object.keys(plan.macros).length === 0) return;
 			mergeIntoMathJax(plan);
-		}, ms);
-	}
+		}, ms),
+	);
+
+	return () => {
+		for (const id of timers) window.clearTimeout(id);
+		timers.length = 0;
+	};
 }
 
 function dedupe(list: readonly string[]): string[] {
