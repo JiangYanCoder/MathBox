@@ -1,8 +1,1379 @@
 /*
+ * MathBox —— 面板样式
+ * 全部使用 Obsidian CSS 变量，明暗主题与社区主题自动跟随宿主，
+ * 插件不提供独立配色（面板配色切换功能已移除）。
+ */
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+/* ====================== 独立浮动窗口（v3.2 底层改动） ====================== */
+/* 面板不再继承宿主 Modal：自建窗口挂 document.body，以 fixed 相对视口定位，
+ * 尺寸 / 层级 / 最小化 / 最大化 / 置顶全部自主；
+ * 挂载根 .mathbox-win-root 用 display:contents，不产生盒模型、不拦截面板外的点击。 */
 
-If your plugin does not need CSS, delete this file.
+.mathbox-win-root {
+	display: contents;
+}
 
-*/
+/* 位置与尺寸由面板 JS 以内联样式写入（可拖动 / 可缩放），此处仅作兜底 */
+
+.mathbox-modal {
+	position: fixed;
+	z-index: var(--layer-modal, 50);
+	width: min(1120px, 94vw);
+	height: min(780px, 90vh);
+	max-width: none !important;
+	max-height: none !important;
+	margin: 0;
+	padding: 0;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-l, 10px);
+	box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+	overflow: hidden;
+}
+
+/* 置顶（固定窗口）：层级抬到 notice 之上，压过其他弹层 */
+/* 最大化：铺满整个屏幕（含 modal-container 的留白区域） */
+.mathbox-modal.is-maximized {
+	left: 0 !important;
+	top: 0 !important;
+	width: 100vw !important;
+	height: 100vh !important;
+	border-radius: 0;
+}
+
+/* 最小化：折叠为仅顶栏（高度收缩由 JS 写入 height:auto 并配合 !important 兜底） */
+.mathbox-modal.is-minimized {
+	height: auto !important;
+	min-height: 0 !important;
+}
+
+.mathbox-modal.is-minimized .mathbox-body,
+.mathbox-modal.is-minimized .mathbox-resize-handle {
+	display: none;
+}
+
+/* Obsidian 原生头部与自绘顶栏冲突（JS 侧已在 buildUi 中移除节点，
+ * 此处 !important 兜底防主题强行还原）：
+ *  · 1.14+ 关闭按钮为 .modal-header-button（旧版 .modal-close-button），
+ *    绝对定位右上角 + z-index --layer-modal，会压盖顶栏按钮组；
+ *  · 1.14+ 标题外的 .modal-header 横条容器，空标题时呈现为异色横线区域 */
+.mathbox-modal .modal-header-button,
+.mathbox-modal .modal-close-button {
+	display: none !important;
+}
+
+.mathbox-modal .modal-header {
+	display: none !important;
+}
+
+.mathbox-modal .mathbox-title-hidden {
+	display: none;
+}
+
+.mathbox-modal .modal-content {
+	padding: 0;
+	height: 100%;
+	overflow: hidden;
+}
+
+.mathbox-panel {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-height: 0;
+	background: var(--background-primary);
+	color: var(--text-normal);
+	font-size: 13px;
+
+	/* ---------- 跨栏统一行度量 ----------
+	 * 主区（A/B/C 区）与侧边栏（D 区）的「表头行 / 工具行 / 分隔线」
+	 * 共用同一套内边距与最小高度，保证左右两栏的横向分隔线在同一水平线上。
+	 * 之前主区 section-head 为 5px/10px（实测高 38px）、侧栏 tabs 为 6px/6px
+	 * （实测高 36px），导致两侧分隔线错位 2px。 */
+	--mb-row-pad-y: 5px;
+	--mb-row-pad-x: 10px;
+	--mb-row-min-h: 38px;
+	/* ---------- 侧栏内容基线 ----------
+	 * 侧栏内所有元素的左/右边缘都落在「距侧栏内容盒 14px」这条基线上：
+	 *   · 分组跳转按钮（.mathbox-side-chips > .mathbox-gselect）作为基准；
+	 *   · 三个标签键的左右端点、搜索框、筛选行、收藏条目容器、空状态区同此基线；
+	 *   · 组内元素（收藏标题文字、代码块）在容器内再缩进，不越出基线。
+	 * 滚动容器 .mathbox-side-body 承担这 14px，其内部各行不再重复左缩进。 */
+	--mb-content-x: 14px;
+	--mb-row-gap: 6px;
+	/* 收藏容器内部缩进：标题文字与代码块共用同一值 → 二者左缘一致 */
+	--mb-fav-inset: 12px;
+}
+
+/* ============================ 缩放把手 ============================ */
+
+.mathbox-resize-handle {
+	position: absolute;
+	z-index: 30;
+	touch-action: none;
+}
+
+.mathbox-resize-handle[hidden] {
+	display: none;
+}
+
+.mathbox-resize-handle.is-e {
+	top: 0;
+	right: 0;
+	width: 6px;
+	height: 100%;
+	cursor: ew-resize;
+}
+
+.mathbox-resize-handle.is-s {
+	bottom: 0;
+	left: 0;
+	width: 100%;
+	height: 6px;
+	cursor: ns-resize;
+}
+
+.mathbox-resize-handle.is-se {
+	right: 0;
+	bottom: 0;
+	width: 16px;
+	height: 16px;
+	cursor: nwse-resize;
+}
+
+.mathbox-resize-handle.is-se::after {
+	content: '';
+	position: absolute;
+	right: 3px;
+	bottom: 3px;
+	width: 8px;
+	height: 8px;
+	border-right: 2px solid var(--text-faint);
+	border-bottom: 2px solid var(--text-faint);
+	border-radius: 0 0 2px 0;
+	opacity: 0.6;
+}
+
+.mathbox-resize-handle.is-se:hover::after {
+	opacity: 1;
+	border-color: var(--interactive-accent);
+}
+
+body.mathbox-dragging,
+body.mathbox-resizing-panel {
+	cursor: grabbing;
+	user-select: none;
+}
+
+/* ============================== 顶栏 ============================== */
+
+.mathbox-topbar {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex: 0 0 auto;
+	padding: 7px 10px;
+	background: var(--background-secondary);
+	border-bottom: 1px solid var(--background-modifier-border);
+	cursor: grab;
+	touch-action: none;
+}
+
+body.mathbox-dragging .mathbox-topbar {
+	cursor: grabbing;
+}
+
+.mathbox-brand {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-weight: 600;
+}
+
+.mathbox-brand-icon svg {
+	width: 16px;
+	height: 16px;
+}
+
+.mathbox-brand-name {
+	font-size: 13.5px;
+}
+
+.mathbox-badge {
+	font-size: 11px;
+	font-weight: 500;
+	padding: 1px 6px;
+	border-radius: 6px;
+	color: var(--text-muted);
+	background: var(--background-modifier-hover);
+}
+
+/* ===== 侧边栏开合按钮（复用宿主 sidebar-toggle-button-icon 动画图标） ===== */
+
+/* 顶栏工具组：置顶 / 设置 / 侧边栏开合（窗口控件组左侧） */
+/* 工具按钮组（设置 / 侧边栏开合）
+ * 视觉规范与右侧窗口三键完全一致：
+ *  · 同样挂宿主 .titlebar-button 类 —— 内边距、圆角、悬停底色、禁用态均由宿主提供；
+ *  · 同样 align-self: stretch + 负上下外边距 → 铺满顶栏全高，**同一高度基线**；
+ *  · 图标尺寸统一 var(--icon-m)，方形键宽 30px、相邻键之间无间隙（与三键一致），
+ *    组间留 6px（窗口控件组的 margin-left 亦为 6px）。
+ *  · 平台差异跟随宿主：Windows 下宿主把 titlebar-button 内边距改为 0 16px，
+ *    此处显式覆盖为方形（width 30px / padding 0），保持图标键观感统一。 */
+.mathbox-topbar-tools {
+	display: flex;
+	align-items: stretch;
+	align-self: stretch;
+	gap: 0;
+	/* 与 .mathbox-window-controls 相同的负外边距：贴合顶栏上下边缘 */
+	margin: -7px 0 -7px auto;
+}
+
+.mathbox-topbar-tools .titlebar-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	/* 覆盖 .mod-windows .titlebar-button 的 0 16px，统一为方形图标键 */
+	width: 30px;
+	padding: 0;
+	border: none;
+	box-shadow: none;
+	background: transparent;
+	color: var(--text-muted);
+	--icon-size: var(--icon-m);
+	--icon-stroke: var(--icon-m-stroke-width);
+}
+
+/* 悬停 / 按下 / 焦点 / 禁用：与宿主 titlebar-button 同一套观感 */
+.mathbox-topbar-tools .titlebar-button:hover {
+	background-color: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.mathbox-topbar-tools .titlebar-button:active {
+	background-color: var(--background-modifier-active-hover, var(--background-modifier-hover));
+}
+
+.mathbox-topbar-tools .titlebar-button:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 2px var(--interactive-accent);
+}
+
+.mathbox-topbar-tools .titlebar-button:disabled,
+.mathbox-topbar-tools .titlebar-button.is-disabled {
+	opacity: 0.4;
+	pointer-events: none;
+	background: transparent;
+}
+
+/* ===== 停靠模式：面板作为工作区标签页 / 独立窗口的内容 =====
+ * 尺寸与最小化交给工作区：窗口本体改为填满宿主容器，去掉边框圆角与投影，
+ * 顶栏仍保留（设置 / 侧边栏 / 关闭）。 */
+.mathbox-win-docked {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+
+.mathbox-win-docked > .mathbox-modal {
+	position: relative;
+	left: auto !important;
+	top: auto !important;
+	width: 100% !important;
+	height: 100% !important;
+	max-width: 100% !important;
+	max-height: 100% !important;
+	border: 0;
+	border-radius: 0;
+	box-shadow: none;
+}
+
+.mathbox-view-host {
+	display: flex;
+	flex-direction: column;
+	padding: 0;
+	overflow: hidden;
+}
+
+/* 侧边栏开合键：尺寸 / 内边距 / 悬停等统一由 .mathbox-topbar-tools .titlebar-button 提供，
+ * 此处只保留动画与镜像相关规则 */
+.mathbox-side-toggle {
+	flex: 0 0 auto;
+}
+
+/* 右侧侧边栏：图标镜像（宿主 .mod-right 同款） */
+.mathbox-side-toggle svg {
+	transform: scale(-1, 1);
+}
+
+/* 内条随面板开合加宽（8.33% ↔ 24%，宿主同参数） */
+.mathbox-side-toggle .sidebar-toggle-icon-inner {
+	stroke: none;
+	width: 8.33%;
+	transition: width 100ms ease-in-out;
+}
+
+.mathbox-panel:not(.is-side-collapsed) .mathbox-side-toggle .sidebar-toggle-icon-inner {
+	width: 24%;
+}
+
+/* ===== 窗口控件组（复用宿主 .titlebar-button 类，Windows 原生观感） ===== */
+
+.mathbox-window-controls {
+	display: flex;
+	align-items: stretch;
+	align-self: stretch;
+	/* 抵消顶栏内边距，控件组贴合面板右上角（宿主标题栏观感） */
+	margin: -7px -10px -7px 6px;
+}
+
+.mathbox-window-controls .mathbox-wbtn {
+	height: 100%;
+}
+
+/* 关闭键悬停：红底白图标（宿主 Windows/Linux 行为） */
+.mathbox-modal .titlebar-button.mod-close:hover svg {
+	fill: #ffffff;
+	stroke: #ffffff;
+}
+
+/* ============================== 按钮 ============================== */
+
+.mathbox-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	width: 27px;
+	height: 27px;
+	padding: 0;
+	border: none;
+	border-radius: 5px;
+	background: transparent;
+	color: var(--text-muted);
+	box-shadow: none;
+	cursor: pointer;
+}
+
+.mathbox-btn:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.mathbox-btn.is-text {
+	width: auto;
+	padding: 0 8px;
+	font-size: 12.5px;
+}
+
+.mathbox-icon {
+	display: inline-flex;
+	align-items: center;
+}
+
+.mathbox-icon svg {
+	width: 16px;
+	height: 16px;
+}
+
+/* ============================== 主体 ============================== */
+
+.mathbox-body {
+	display: flex;
+	/* stretch 让两栏等高填满；配合各栏内部 flex-start，内容不足时保持顶部对齐 */
+	align-items: stretch;
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+.mathbox-main {
+	display: grid;
+	grid-template-rows: 0.45fr auto auto 0.55fr;
+	flex: 1 1 auto;
+	min-width: 0;
+	min-height: 0;
+}
+
+.mathbox-section {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.mathbox-section-head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex: 0 0 auto;
+	/* 与侧栏 .mathbox-side-tabs 同一行度量 → 左右分隔线水平对齐 */
+	min-height: var(--mb-row-min-h);
+	padding: var(--mb-row-pad-y) var(--mb-row-pad-x);
+	background: var(--background-secondary);
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.mathbox-section-title {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--text-muted);
+}
+
+.mathbox-section-tools {
+	margin-left: auto;
+	display: flex;
+	gap: 2px;
+}
+
+/* ============================ A 渲染区 ============================ */
+
+.mathbox-render {
+	background: var(--background-primary);
+}
+
+.mathbox-render-body {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: auto;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 14px 18px;
+}
+
+.mathbox-render-content {
+	width: 100%;
+	text-align: center;
+}
+
+.mathbox-math {
+	font-size: 1.35em;
+	line-height: 1.4;
+}
+
+.mathbox-empty {
+	color: var(--text-faint);
+	font-size: 12.5px;
+}
+
+.mathbox-note {
+	flex: 0 0 auto;
+	padding: 4px 10px;
+	font-size: 11.5px;
+	border-top: 1px solid var(--background-modifier-border);
+	word-break: break-word;
+}
+
+.mathbox-note.is-error {
+	color: var(--text-error);
+}
+
+.mathbox-note.is-warn {
+	color: var(--text-warning);
+}
+
+/* ============================ B 选项栏 ============================ */
+
+.mathbox-optionbar {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+	flex: 0 0 auto;
+	min-height: var(--mb-row-min-h);
+	padding: var(--mb-row-pad-y) var(--mb-row-pad-x);
+	background: var(--background-secondary);
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.mathbox-option-left {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+
+.mathbox-option-right {
+	margin-left: auto;
+	display: flex;
+	gap: 6px;
+}
+
+/* 三个下拉（字号 / 字体 / 环境）统一固定宽度：
+ * native <select> 默认按最长 option 文本撑开，文字长度差异会让宽度跳动、
+ * 切换选项时整条工具栏横向抖动。故统一 width + min-width 并允许文字省略。 */
+.mathbox-select {
+	height: 26px;
+	width: 96px;
+	min-width: 96px;
+	max-width: 96px;
+	padding: 0 22px 0 6px;
+	font-size: 12px;
+	text-overflow: ellipsis;
+}
+
+/* 环境下拉的包裹层与下拉同宽，保证「环境」与「字号/字体」左右对齐 */
+.mathbox-env-wrap {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	width: 96px;
+	min-width: 96px;
+	max-width: 96px;
+}
+
+.mathbox-env-wrap .mathbox-select {
+	flex: 1 1 auto;
+	width: 100%;
+	min-width: 0;
+	max-width: none;
+}
+
+.mathbox-p1-badge {
+	font-size: 10px;
+	padding: 0 4px;
+	border-radius: 4px;
+	color: var(--text-on-accent);
+	background: var(--interactive-accent);
+}
+
+.mathbox-color-wrap {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.mathbox-color-dot {
+	width: 12px;
+	height: 12px;
+	border-radius: 3px;
+	border: 1px solid var(--background-modifier-border);
+}
+
+.mathbox-action {
+	height: 27px;
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-normal);
+}
+
+.mathbox-action:hover {
+	border-color: var(--interactive-accent);
+	color: var(--text-normal);
+}
+
+/* ============================ 拖拽分隔条 ============================ */
+
+.mathbox-splitter {
+	height: 5px;
+	flex: 0 0 auto;
+	cursor: row-resize;
+	background: var(--background-modifier-border);
+}
+
+.mathbox-splitter:hover {
+	background: var(--interactive-accent);
+}
+
+body.mathbox-resizing {
+	cursor: row-resize;
+	user-select: none;
+}
+
+/* ============================ C 源码区 ============================ */
+
+.mathbox-source {
+	background: var(--background-primary);
+}
+
+.mathbox-source-count {
+	font-size: 11px;
+	color: var(--text-faint);
+}
+
+.mathbox-textarea {
+	flex: 1 1 auto;
+	width: 100%;
+	min-height: 0;
+	padding: 9px 12px;
+	border: none;
+	border-radius: 0;
+	background: var(--background-primary);
+	color: var(--text-normal);
+	font-family: var(--font-monospace);
+	font-size: 13px;
+	line-height: 1.6;
+	resize: none;
+	box-shadow: none;
+	white-space: pre;
+	overflow: auto;
+}
+
+.mathbox-textarea:focus {
+	box-shadow: none;
+	outline: none;
+}
+
+/* ============================ D 侧边栏 ============================ */
+/* 宽度由 --mathbox-side-width 控制（面板 JS 写入，可拖拽调整） */
+
+.mathbox-side-resizer {
+	flex: 0 0 5px;
+	width: 5px;
+	cursor: col-resize;
+	background: var(--background-modifier-border);
+}
+
+.mathbox-side-resizer:hover {
+	background: var(--interactive-accent);
+}
+
+.mathbox-panel.is-side-collapsed .mathbox-side-resizer {
+	display: none;
+}
+
+.mathbox-sidepane {
+	display: flex;
+	flex-direction: column;
+	/* 内容不足容器高度时保持顶部对齐，不被拉伸/居中 */
+	justify-content: flex-start;
+	flex: 0 0 var(--mathbox-side-width, 260px);
+	width: var(--mathbox-side-width, 260px);
+	min-width: 0;
+	min-height: 0;
+	background: var(--background-secondary);
+	border-left: 1px solid var(--background-modifier-border);
+}
+
+.mathbox-panel.is-side-collapsed .mathbox-sidepane {
+	display: none;
+}
+
+.mathbox-side-tabs {
+	display: flex;
+	align-items: stretch;
+	gap: 2px;
+	flex: 0 0 auto;
+	/* 与主区 .mathbox-section-head 同一行度量 → 左右分隔线水平对齐；
+	 * 左右内边距取内容基线值：首键左端点与末键右端点
+	 * 与下方容器（跳转按钮 / 搜索框 / 收藏条目）的左右边缘共线。 */
+	min-height: var(--mb-row-min-h);
+	padding: var(--mb-row-pad-y) var(--mb-content-x);
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+/* 标签键纵向撑满行高，使三者文字基线一致（配合 align-items: stretch） */
+.mathbox-side-tabs .mathbox-tab {
+	display: flex;
+	align-items: center;
+}
+
+/* 分组跳转 chips（快捷工具 / 公式模板 / 收藏夹通用） */
+
+.mathbox-side-chips {
+	display: flex;
+	gap: 4px;
+	flex: 0 0 auto;
+	/* 分组跳转按钮 —— 侧栏对齐基准，其左右边缘即内容基线 */
+	padding: 5px var(--mb-content-x);
+	overflow-x: auto;
+	overflow-y: hidden;
+	white-space: nowrap;
+	border-bottom: 1px solid var(--background-modifier-border);
+	scrollbar-width: thin;
+}
+
+.mathbox-side-chips[hidden] {
+	display: none;
+}
+
+.mathbox-side-chips::-webkit-scrollbar {
+	height: 4px;
+}
+
+.mathbox-chip {
+	flex: 0 0 auto;
+	padding: 2px 8px;
+	font-size: 11.5px;
+	line-height: 1.5;
+	white-space: nowrap;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 999px;
+	background: var(--background-primary);
+	color: var(--text-muted);
+	box-shadow: none;
+	cursor: pointer;
+}
+
+.mathbox-chip:hover {
+	border-color: var(--interactive-accent);
+	color: var(--text-normal);
+}
+
+.mathbox-chip.is-active {
+	background: var(--interactive-accent);
+	border-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+	font-weight: 600;
+}
+
+.mathbox-tab {
+	/* 三键等宽：flex-basis:0 + min-width:0，长短文本与窄屏下都均分 */
+	flex: 1 1 0;
+	min-width: 0;
+	padding: 4px 6px;
+	font-size: 12px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	border: none;
+	border-radius: 5px;
+	background: transparent;
+	color: var(--text-muted);
+	box-shadow: none;
+	cursor: pointer;
+}
+
+.mathbox-tab:hover {
+	background: var(--background-modifier-hover);
+}
+
+.mathbox-tab.is-active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	font-weight: 600;
+}
+
+.mathbox-side-body {
+	/* position:relative —— 使分组标题的 offsetTop 以本容器为基准，
+	   跳转与滚动联动据此计算（sticky 标题下 rect 会失真） */
+	position: relative;
+	/* flex-start：内容不足时顶部对齐、不居中；auto 才可滚动（内容超出时正常滚动） */
+	justify-content: flex-start;
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+	/* 水平内边距 = 侧栏内容基线；内部各行不再重复左缩进，
+	 * 使滚动区内所有容器的左右边缘与分组跳转按钮共边 */
+	padding: 6px var(--mb-content-x) 14px;
+}
+
+/* ===== 关键修复：侧边栏内容不得参与 flex 收缩 =====
+ * .mathbox-side-body 是定高的 flex item（overflow-y:auto），其子元素
+ * 默认 flex-shrink:1 —— 条目一多就会把每个按钮压到内容高度以下，
+ * 表现为「标题正常、代码块被裁成一条线」。
+ * 统一改为 flex:0 0 auto：超出高度一律由滚动容器滚动，按钮保持内容高度。 */
+.mathbox-side-body > *,
+.mathbox-template-list > *,
+.mathbox-fav-groups > *,
+.mathbox-fav-list > *,
+.mathbox-template > *,
+.mathbox-fav-item > * {
+	flex: 0 0 auto;
+}
+
+/* 分组选择器（快捷工具 / 公式模板共用）：选择按钮 + 弹出列表点选切换 */
+.mathbox-gselect {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	width: 100%;
+	padding: 4px 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s, 6px);
+	background: var(--interactive-normal);
+	color: var(--text-normal);
+	font-size: 12.5px;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.mathbox-gselect:hover,
+.mathbox-gselect.is-open {
+	background: var(--interactive-hover);
+}
+
+.mathbox-gselect .mathbox-icon svg {
+	width: 14px;
+	height: 14px;
+}
+
+/* 下拉列表挂 document.body 以 fixed 对齐按钮（控制行有 overflow 裁剪）。
+ * 层级必须高于 Modal：宿主 --layer-modal 为 50，沿用 --layer-popover(30)
+ * 会被 Modal 盖住而「看似点不动」，故取 --layer-menu(65) 与宿主菜单同级。 */
+.mathbox-gselect-dropdown {
+	position: fixed;
+	z-index: var(--layer-menu, 65);
+	max-height: 260px;
+	overflow-y: auto;
+	padding: 4px;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m, 8px);
+	box-shadow: 0 4px 16px var(--background-modifier-box-shadow, rgba(0, 0, 0, 0.18));
+}
+
+.mathbox-gselect-item {
+	display: block;
+	width: 100%;
+	padding: 5px 10px;
+	border: none;
+	border-radius: var(--radius-s, 6px);
+	background: none;
+	color: var(--text-normal);
+	font-size: 12.5px;
+	text-align: left;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.mathbox-gselect-item:hover {
+	background: var(--background-modifier-hover);
+}
+
+.mathbox-gselect-item.is-active {
+	color: var(--text-accent);
+	font-weight: 600;
+}
+
+.mathbox-side-hint {
+	/* 无水平内缩：空状态区左缘 = 内容基线 = 所在分组标题文字左缘 */
+	padding: 6px 0;
+	font-size: 11.5px;
+	color: var(--text-faint);
+	line-height: 1.5;
+}
+
+.mathbox-side-group {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	margin: 10px 0 4px;
+	/* 水平不留内边距：分组标题文字左缘直接落在内容基线上，
+	 * 与组内收藏条目的**容器**左边缘对齐（文字不再额外缩进） */
+	padding: 3px 0;
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--text-muted);
+	background: var(--background-secondary);
+}
+
+/* 符号网格：列宽自适应 + dense 回填，条目按内容跨列（宽条目不再被挤成小格），
+ * 同一行的按钮由 grid 拉伸为等高，整体保持整齐 */
+.mathbox-symbol-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(32px, 1fr));
+	grid-auto-rows: minmax(30px, auto);
+	grid-auto-flow: row dense;
+	gap: 4px;
+}
+
+.mathbox-symbol {
+	min-height: 30px;
+	padding: 3px 4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+	line-height: 1.25;
+	font-size: 15px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 5px;
+	background: var(--background-primary);
+	color: var(--text-normal);
+	box-shadow: none;
+	cursor: pointer;
+	overflow-wrap: anywhere;
+}
+
+.mathbox-symbol:hover {
+	background: var(--background-modifier-hover);
+	border-color: var(--interactive-accent);
+}
+
+.mathbox-template-list {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+/* 上下结构：标题（名称 + 标签）在上，LaTeX 代码在下（整块独占一行）。
+ * 侧边栏默认 700 px（可拖到 780），按钮宽度为原设计的 2 倍，标题与代码均完整显示 */
+/* 内部用**块布局**：条目元素已是 div（role="button"），块布局下
+ * 标题在上、代码在下，间距由子元素 margin 控制，行为确定。
+ * 不用 flex column —— 按钮类元素的内部布局易出现裁剪 / 重叠。 */
+.mathbox-template {
+	width: 100%;
+	min-width: 0;
+	display: block;
+	padding: 10px 14px;
+	text-align: left;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-primary);
+	box-shadow: none;
+	cursor: pointer;
+	overflow: visible;
+}
+
+.mathbox-template:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 1px;
+}
+
+.mathbox-template:hover {
+	background: var(--background-modifier-hover);
+	border-color: var(--interactive-accent);
+}
+
+.mathbox-template-name {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 8px;
+	/* 标题与代码块之间的固定间距（块布局下用 margin，不用 gap） */
+	margin: 0 0 6px;
+	font-size: 13.5px;
+	font-weight: 600;
+	line-height: 1.4;
+	color: var(--text-normal);
+}
+
+/* 代码块：内容完整展示（不做行数裁剪），长内容自动换行；
+ * 极端情况下（不可断的超长串）允许横向滚动，绝不裁剪内容。
+ * display:block + 固定 margin，避免继承标题行的行高造成基线错位 */
+.mathbox-template-latex {
+	display: block;
+	width: 100%;
+	margin: 0;
+	padding: 6px 10px;
+	border-radius: 4px;
+	background: var(--background-secondary);
+	font-family: var(--font-monospace);
+	font-size: 12.5px;
+	line-height: 1.55;
+	color: var(--text-faint);
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	word-break: break-word;
+	overflow-x: auto;
+	overflow-y: hidden;
+}
+
+.mathbox-tag {
+	padding: 0 4px;
+	font-size: 10px;
+	border-radius: 4px;
+	color: var(--text-muted);
+	background: var(--background-modifier-hover);
+}
+
+/* ============================ 收藏夹 ============================ */
+
+/* 搜索框与过滤 chips 滚动时吸顶，分组标题（sticky）在其下方让位 */
+
+/* ===== 深色模式：模板 / 收藏代码展示区 =====
+ * 默认样式（浅色与跟随主题）保持 --background-secondary + --text-faint 不变；
+ * 仅在宿主深色主题（body.theme-dark）下加深底色、提高文字对比度，
+ * 并给代码加一层细微描边，使其从条目背景中分离出来。 */
+body.theme-dark .mathbox-template-latex,
+body.theme-dark .mathbox-fav-latex {
+	background: #16171a;
+	color: #d7dae0;
+	border: 1px solid #34363c;
+}
+
+/* 悬停反馈：仅在悬停时做色彩过渡（不在基线上加 transition，
+ * 否则切换深色的瞬间会从旧色渐变，短暂出现低对比的中间态） */
+.mathbox-template:hover .mathbox-template-latex,
+.mathbox-fav-item:hover .mathbox-fav-latex {
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	transition: background 0.12s ease, color 0.12s ease;
+}
+
+body.theme-dark .mathbox-template:hover .mathbox-template-latex,
+body.theme-dark .mathbox-fav-item:hover .mathbox-fav-latex {
+	background: #1d1f23;
+	color: #e6e8ec;
+	border-color: #45474f;
+}
+
+/* ===== 分组管理弹窗（删除分组） ===== */
+
+.mathbox-group-list {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	max-height: 240px;
+	overflow-y: auto;
+	margin-bottom: 8px;
+}
+
+.mathbox-group-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 5px 6px;
+	border-radius: var(--radius-s, 6px);
+}
+
+.mathbox-group-row:hover {
+	background: var(--background-modifier-hover);
+}
+
+/* 预置分组 / 未分组：只读 */
+.mathbox-group-row.is-protected {
+	opacity: 0.65;
+}
+
+.mathbox-group-name {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 13px;
+	color: var(--text-normal);
+}
+
+.mathbox-group-count {
+	flex: 0 0 auto;
+	font-size: 11.5px;
+	color: var(--text-faint);
+}
+
+.mathbox-group-del {
+	flex: 0 0 auto;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	color: var(--text-muted);
+}
+
+.mathbox-group-del:not(:disabled):hover {
+	color: var(--text-error);
+	background: var(--background-modifier-error-hover, var(--background-modifier-hover));
+}
+
+.mathbox-group-all,
+.mathbox-group-policy {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-top: 6px;
+	font-size: 12.5px;
+	color: var(--text-normal);
+}
+
+.mathbox-group-policy {
+	flex-wrap: wrap;
+}
+
+.mathbox-group-policy-label {
+	color: var(--text-muted);
+	margin-right: 4px;
+}
+
+/* ===== 自定义矩阵弹窗（行数 / 列数 / 环境） ===== */
+
+.mathbox-matrix-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 10px;
+}
+
+.mathbox-matrix-field {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+
+.mathbox-matrix-field.is-wide {
+	grid-column: 1 / -1;
+}
+
+.mathbox-matrix-input,
+.mathbox-matrix-select {
+	width: 100%;
+	font-size: 13px;
+}
+
+.mathbox-matrix-preview {
+	margin-top: 10px;
+	padding: 6px 0;
+	text-align: center;
+	font-size: 15px;
+	font-weight: 600;
+	color: var(--text-normal);
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+/* 快捷工具中的「矩阵 m×n」入口按钮（跨三列，弱化成动作按钮） */
+.mathbox-symbol.is-action {
+	/* 动作键独占整行（跨三列）——写在 CSS 而非内联样式 */
+	grid-column: span 3;
+	font-size: 12.5px;
+	font-weight: 600;
+	color: var(--text-accent);
+	border-style: dashed;
+	border-color: var(--interactive-accent);
+	background: var(--background-modifier-hover);
+}
+
+.mathbox-symbol.is-action:hover {
+	color: var(--text-on-accent);
+	background: var(--interactive-accent);
+}
+/* ---------- 搜索行槽位（与 .mathbox-side-chips 同级，位于滚动容器之外） ----------
+ * 公式模板 / 收藏夹的搜索框挂在此处：列表滚动时搜索框固定可见。
+ * 水平内边距与 .mathbox-side-chips 取同一基线值 → 搜索框左右边缘
+ * 与分组跳转按钮、标签键端点共线。快捷工具页无搜索框，整行 hidden。 */
+.mathbox-side-searchrow {
+	flex: 0 0 auto;
+	padding: 0 var(--mb-content-x);
+	background: var(--background-secondary);
+}
+
+.mathbox-side-searchrow[hidden] {
+	display: none;
+}
+
+/* 行内载体：撑满槽位，使输入框 width:100% 铺满 */
+.mathbox-side-tools {
+	padding: 6px 0;
+}
+
+/* 收藏夹搜索行：槽位内不再重复水平内边距；下方留白由筛选行的 padding-top 承担 */
+.mathbox-fav-search-row {
+	padding: 6px 0 0;
+}
+
+/* 收藏夹：搜索行与筛选行是滚动容器下的两个**同级独立块**。
+ * 不设背景色（透明，随侧边栏底色），两者之间用间距 + 顶部分隔线区分，
+ * 不再出现"搜索框与筛选项共用一块白底"的现象。
+ * 同时不吸顶——透明背景 + sticky 会让下方条目滚动时穿透显示，故改为常规流。 */
+.mathbox-fav-search-row {
+	/* 水平缩进由 .mathbox-side-body 提供 → 搜索框左右缘与基线共边 */
+	padding: 2px 0 8px;
+}
+
+/* 收藏夹筛选 / 排序行：已移入 .mathbox-side-searchrow 槽内（滚动容器之外），
+ * 与搜索框一起固定在顶部。水平缩进由槽位提供，此处不再重复；
+ * chips 排列、悬停、选中态样式与交互完全不变。 */
+.mathbox-fav-filters {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+	padding: 6px 0;
+}
+
+/* 搜索框：作为行容器的唯一子元素铺满，右边缘与筛选行一致 */
+.mathbox-fav-search {
+	display: block;
+	width: 100%;
+	margin: 0;
+	font-size: 12px;
+}
+
+/* 模板页搜索框：与 .mathbox-tpl-sections 同为滚动容器的直接子元素，
+ * 不额外加左右外边距 → 左右边缘与模板列表完全对齐 */
+.mathbox-tpl-search {
+	width: 100%;
+	margin: 0;
+	font-size: 12px;
+}
+
+/* 收藏夹分组列表容器：位于滚动容器内。顶部分隔线用于与固定在顶部槽内的
+ * 筛选行分区（筛选行不再随列表滚动）。 */
+.mathbox-fav-groups {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.mathbox-fav-list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+/* 收藏条目：第一行 = 标题（+ 悬停时浮现的操作按钮），第二行 = LaTeX 源码。
+ * 操作按钮绝对定位于标题行后方，平时完全透明（底色与标题一致）且不占布局空间 */
+.mathbox-fav-item {
+	position: relative;
+	display: block;
+	overflow: hidden;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-primary);
+}
+
+.mathbox-fav-item:hover {
+	border-color: var(--interactive-accent);
+}
+
+/* 收藏条目主区域：块布局（标题行 + 代码块） */
+.mathbox-fav-main {
+	display: block;
+	width: 100%;
+	min-width: 0;
+	/* 容器边缘贴内容基线；标题文字在容器内缩进 --mb-fav-inset，
+	 * .mathbox-fav-latex 无额外左外边距 → 代码块左缘 = 标题文字左缘 */
+	padding: 9px 12px 9px var(--mb-fav-inset);
+	text-align: left;
+	border: none;
+	background: transparent;
+	box-shadow: none;
+	cursor: pointer;
+	overflow: visible;
+}
+
+.mathbox-fav-main:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: -2px;
+}
+
+/* 标题行：为右侧浮现的操作按钮预留位（平时不可见，故不显突兀）。
+ * 标题完整显示：允许换行，不做省略号截断；与下方代码块保持固定间距 */
+.mathbox-fav-name {
+	display: block;
+	margin: 0 0 6px;
+	padding-right: 74px;
+	font-size: 13.5px;
+	font-weight: 600;
+	line-height: 1.4;
+	color: var(--text-normal);
+	white-space: normal;
+	overflow: visible;
+	overflow-wrap: anywhere;
+}
+
+.mathbox-fav-latex {
+	display: block;
+	/* 无左外边距 → 代码块外框左缘与上方标题文字左缘严格一致（仅内部留白） */
+	margin: 0;
+	padding: 5px 8px;
+	border-radius: 4px;
+	background: var(--background-secondary);
+	font-family: var(--font-monospace);
+	font-size: 12.5px;
+	line-height: 1.55;
+	color: var(--text-faint);
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	word-break: break-word;
+	overflow-x: auto;
+	overflow-y: hidden;
+}
+
+/* 操作区：与标题同一底色（透明），仅悬停 / 聚焦时淡入 */
+.mathbox-fav-actions {
+	position: absolute;
+	top: 6px;
+	right: 8px;
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	padding: 0;
+	background: transparent;
+	opacity: 0;
+	transition: opacity 0.12s ease;
+}
+
+.mathbox-fav-item:hover .mathbox-fav-actions,
+.mathbox-fav-item:focus-within .mathbox-fav-actions {
+	opacity: 1;
+}
+
+.mathbox-fav-actions .mathbox-btn {
+	width: 22px;
+	height: 22px;
+}
+
+.mathbox-fav-actions .mathbox-icon svg {
+	width: 13px;
+	height: 13px;
+}
+
+/* ============================ 小弹窗 ============================ */
+
+.mathbox-prompt-content {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.mathbox-prompt-input {
+	width: 100%;
+}
+
+.mathbox-prompt-field {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin-top: 10px;
+}
+
+.mathbox-prompt-field-label {
+	font-size: 12px;
+	color: var(--text-muted);
+}
+
+.mathbox-prompt-select {
+	width: 100%;
+	font-size: 13px;
+}
+
+.mathbox-prompt-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
+.mathbox-confirm-message {
+	margin: 0;
+	font-size: 13px;
+	color: var(--text-normal);
+}
+
+/* ============================ 设置页 ============================ */
+
+.mathbox-settings-heading {
+	margin: 20px 0 6px;
+	font-size: 14px;
+	color: var(--text-muted);
+}
+
+.mathbox-settings-note {
+	margin: 4px 0 10px;
+	font-size: 12.5px;
+	line-height: 1.65;
+	color: var(--text-muted);
+}
+
+.mathbox-settings-note.is-muted {
+	color: var(--text-faint);
+}
+
+/* 设置页：扩展包开关随窗口宽度换行，窄屏不挤压 */
+.mathbox-settings .setting-item {
+	flex-wrap: wrap;
+}
+
+/* ============================ 窄屏 ============================ */
+
+@media (max-width: 760px) {
+	.mathbox-sidepane {
+		flex-basis: min(var(--mathbox-side-width, 260px), 46vw);
+		width: min(var(--mathbox-side-width, 260px), 46vw);
+	}
+
+	.mathbox-render-body {
+		padding: 10px;
+	}
+}
