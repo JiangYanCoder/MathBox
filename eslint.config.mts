@@ -6,6 +6,9 @@ export default defineConfig(
 	globalIgnores([
 		'node_modules',
 		'dist',
+		'scripts',
+		// release/ 是 scripts/package.mjs 的打包产物（含压缩后的 main.js），不算源码
+		'release',
 		'esbuild.config.mjs',
 		'version-bump.mjs',
 		'versions.json',

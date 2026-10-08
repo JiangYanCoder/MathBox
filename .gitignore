@@ -1,22 +1,28 @@
-# vscode
-.vscode 
+# 依赖目录
+node_modules/
 
-# Intellij
-*.iml
-.idea
-
-# npm
-node_modules
-
-# Don't include the compiled main.js file in the repo.
-# They should be uploaded to GitHub releases instead.
+# 构建产物（核心：GitHub Actions 会自动构建并发布它们，源码无需提交）
+# 注意：styles.css 必须入库 —— 它是手写源文件，CI 只构建 main.js
 main.js
+*.js.map
+*.css.map
 
-# Exclude sourcemaps
-*.map
+# 本地打包输出（scripts/package.mjs 生成，含 main.js 等构建产物）
+release/
 
-# obsidian
+# 本地发布与测试目录
+发布流程说明.md
+
+# 本地插件数据（用户设置不应提交）
 data.json
 
-# Exclude macOS Finder (System Explorer) View States
+# 脚本/工具临时文件（按需）
+scripts/*.log
+scripts/temp/
+
+# 编辑器与系统垃圾
+.vscode/
+.idea/
 .DS_Store
+Thumbs.db
+*.swp
