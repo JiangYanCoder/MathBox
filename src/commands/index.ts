@@ -2,10 +2,23 @@
  * 三入口注册（ribbon / 编辑器右键菜单 / 命令 + 快捷键）
  */
 
-import { Editor, MarkdownFileInfo, MarkdownView } from 'obsidian';
+import { Editor, MarkdownFileInfo, MarkdownView, Platform } from 'obsidian';
 import { MathBoxModal, resolvePrefill } from '../panel/MathBoxModal';
 import { MATHBOX_VIEW_TYPE } from '../panel/MathBoxView';
 import type MathBoxPlugin from '../main';
+
+/**
+ * 「独立窗口」能力仅桌面端可用。
+ *
+ * `workspace.openPopoutLeaf()` 与 `workspace.moveLeafToPopout()` 依赖 Electron
+ * 的多窗口支持，移动端（Capacitor）没有对应实现——调用会直接抛错。
+ * 本插件声明 `isDesktopOnly: false`（浮动面板、符号表、导出等其余功能在移动端
+ * 均可正常使用），故相关的两条命令改用 `checkCallback`：移动端返回 false，
+ * 命令从命令面板中隐去，而不是列出来一点就报错。
+ */
+function isPopoutSupported(): boolean {
+	return Platform.isDesktopApp;
+}
 
 /**
  * 以**工作区标签页**打开面板（吸附在主界面，可拆分 / 停靠侧边）。
@@ -26,7 +39,7 @@ export async function openMathBoxPopout(plugin: MathBoxPlugin): Promise<void> {
 	await leaf.setViewState({ type: MATHBOX_VIEW_TYPE, active: true });
 }
 
-/** 把已存在的 MathBox 标签页弹出为独立窗口（吸附 → 独立） */
+/** 把已存在的 MathBox 标签页弹出为独立窗口（吸附 → 独立；仅桌面端） */
 export function popOutMathBoxLeaf(plugin: MathBoxPlugin): boolean {
 	const leaf = plugin.app.workspace.getLeavesOfType(MATHBOX_VIEW_TYPE)[0];
 	if (!leaf) return false;
@@ -85,23 +98,28 @@ export function registerCommands(plugin: MathBoxPlugin): void {
 		},
 	});
 
-	// 入口 5：在独立窗口中打开
+	// 入口 5：在独立窗口中打开（桌面专属，移动端隐藏，见 isPopoutSupported）
 	plugin.addCommand({
 		id: 'open-in-popout',
 		name: plugin.t('command.openInPopout'),
-		callback: () => {
-			void openMathBoxPopout(plugin);
+		checkCallback: (checking: boolean) => {
+			if (!isPopoutSupported()) return false;
+			if (!checking) void openMathBoxPopout(plugin);
+			return true;
 		},
 	});
 
-	// 入口 6：把已打开的 MathBox 标签页弹出为独立窗口
+	// 入口 6：把已打开的 MathBox 标签页弹出为独立窗口（桌面专属，移动端隐藏）
 	plugin.addCommand({
 		id: 'popout-leaf',
 		name: plugin.t('command.popoutLeaf'),
-		callback: () => {
-			if (!popOutMathBoxLeaf(plugin)) {
+		checkCallback: (checking: boolean) => {
+			if (!isPopoutSupported()) return false;
+			if (!checking && !popOutMathBoxLeaf(plugin)) {
+				// 当前没有 MathBox 标签页可弹出 —— 退化为新开一个独立窗口
 				void openMathBoxPopout(plugin);
 			}
+			return true;
 		},
 	});
 }
