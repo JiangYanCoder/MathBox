@@ -137,11 +137,17 @@ jobs:
                     gh release delete "$TAG" --yes
                   fi
 
+                  # 注意：--draft / --prerelease 是布尔开关（Go pflag），必须写成
+                  # --flag=<值> 形式。写成 `--draft "$DRAFT"` 会被解析成「--draft 为真
+                  # + 多出一个名为 false 的位置参数」，而 gh release create 的位置参数
+                  # 被当作待上传文件 —— 于是它去打开名为 false 的文件，报
+                  # no such file or directory 并立刻退出（首次打 tag 就是挂在这里）。
+                  echo "draft=${DRAFT} prerelease=${PRERELEASE}"
                   gh release create "$TAG" \
                     --title "MathBox ${{ steps.ver.outputs.version }}" \
                     --notes-file "${{ steps.notes.outputs.path }}" \
-                    --draft "$DRAFT" \
-                    --prerelease "$PRERELEASE" \
+                    --draft="$DRAFT" \
+                    --prerelease="$PRERELEASE" \
                     main.js manifest.json styles.css
 
                   echo "::notice::Release ${TAG} 创建成功"
