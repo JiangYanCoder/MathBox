@@ -1,0 +1,76 @@
+name: Bump version
+
+# 安全网（对应 Obsidian 官方指南的 bump-version 工作流）。
+#
+# 本仓库采用「先 bump、后打 tag」的严格模型：发布前先跑 `npm version x.y.z`，
+# 由 version-bump.mjs 把版本写进 manifest.json / versions.json，再打同名 tag。
+# 因此 Release 发布时，仓库内的版本**通常已经一致**，本工作流直接跳过、不产生提交。
+#
+# 只有在 tag 由 GitHub 网页手动创建、而仓库内版本尚未同步的异常情况下，
+# 才自动补写 manifest.json / versions.json 并提交回默认分支，保证
+# main 分支上的版本号与已发布的 Release 不漂移。
+
+on:
+    release:
+        types: [published]
+
+permissions:
+    contents: write
+
+jobs:
+    bump:
+        name: 同步 manifest.json / versions.json
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+
+        steps:
+            # 先校验 tag：必须是裸语义化版本（无 v 前缀）。
+            # release.yml 只接受 1.2.3 形式的 tag，此处在第二个入口再兜一道，
+            # 避免网页面板手建 Release 时混入 v1.2.3 而悄悄写错版本号。
+            - name: 校验 tag 为不带 v 前缀的语义化版本
+              id: tag
+              env:
+                  TAG: ${{ github.event.release.tag_name }}
+              run: |
+                  set -euo pipefail
+                  echo "release tag = ${TAG}"
+                  if ! printf '%s' "${TAG}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+                    echo "::error::Release tag (${TAG}) 不是裸语义化版本；须形如 1.2.3 且不带 v 前缀（Obsidian 社区规范）"
+                    exit 1
+                  fi
+                  echo "version=${TAG}" >> "$GITHUB_OUTPUT"
+
+            - uses: actions/checkout@v6
+              with:
+                  # 始终同步默认分支（tag 可能打在别的分支上）
+                  ref: ${{ github.event.repository.default_branch }}
+
+            - name: 使用 Node.js
+              uses: actions/setup-node@v6
+              with:
+                  node-version: '24'
+
+            # 复用仓库既有的 version-bump.mjs：npm 的 version 生命周期脚本
+            # （package.json 的 "version"）会调用它写入 manifest.json 与 versions.json。
+            # 版本已一致时 --allow-same-version 让它安静通过，不产生任何文件改动。
+            - name: 同步版本号
+              env:
+                  VERSION: ${{ steps.tag.outputs.version }}
+              run: npm version "${VERSION}" --no-git-tag-version --allow-same-version
+
+            # 按 diff 决定是否提交：已一致（常规路径）则不做空提交
+            - name: 提交同步结果（无改动则跳过）
+              env:
+                  VERSION: ${{ steps.tag.outputs.version }}
+              run: |
+                  set -euo pipefail
+                  if git diff --quiet -- manifest.json versions.json package.json; then
+                    echo "::notice::版本已同步（manifest.json / versions.json / package.json 均无改动），无需提交"
+                    exit 0
+                  fi
+                  git config user.name 'github-actions[bot]'
+                  git config user.email 'github-actions[bot]@users.noreply.github.com'
+                  git add manifest.json versions.json package.json
+                  git commit -m "chore: 同步版本号至 ${VERSION}"
+                  git push
+                  echo "::notice::已补写并推送版本同步提交"
