@@ -159,6 +159,11 @@ export class Plugin {
 	registerEvent(): void {}
 	registerDomEvent(): void {}
 	registerInterval(): void {}
+	/** register() 登记的回调（宿主 Component 在卸载时执行；见 obsidian.d.ts） */
+	readonly cleanups: Array<() => unknown> = [];
+	register(cb: () => unknown): void {
+		this.cleanups.push(cb);
+	}
 }
 
 export class Scope {
