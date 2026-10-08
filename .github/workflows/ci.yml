@@ -1,0 +1,55 @@
+name: CI
+
+# 持续集成：每次 push / PR 都做类型检查、Lint、构建与体积门禁
+on:
+    push:
+        branches:
+            - '**'
+        tags-ignore:
+            - '**'
+    pull_request:
+        branches:
+            - '**'
+
+permissions:
+    contents: read
+
+jobs:
+    build:
+        name: 类型检查 / Lint / 构建
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+
+        steps:
+            - uses: actions/checkout@v6
+
+            - name: 使用 Node.js
+              uses: actions/setup-node@v6
+              with:
+                  node-version: '24'
+                  cache: 'npm'
+
+            # npm ci 依赖 package-lock.json，必须与仓库一致，不可改用 npm install
+            - name: 安装依赖
+              run: npm ci
+
+            - name: 类型检查
+              run: npx tsc -noEmit -skipLibCheck
+
+            - name: Lint
+              run: npm run lint
+
+            # esbuild 生产构建 + scripts/check-size.mjs 体积门禁（≤150 KB）
+            - name: 构建并检查体积
+              run: npm run build
+
+            - name: 上传构建产物（供检查，不发布）
+              uses: actions/upload-artifact@v4
+              with:
+                  name: ci-build
+                  path: |
+                      main.js
+                      manifest.json
+                      styles.css
+                  retention-days: 7
+                  if-no-files-found: error
