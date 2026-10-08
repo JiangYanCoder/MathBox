@@ -326,11 +326,8 @@ export class MathBoxModal extends FloatingWindow implements PanelContext {
 
 	/**
 	 * 最小化 / 还原：折叠为仅顶栏（高度随顶栏收缩），再次点击还原。
-	 * 类加在窗口本体 `modalEl` 上并同步给 `panelEl`：
-	 * 窗口高度由 modalEl 的内联 height 决定，只加在 panelEl 上不会收缩（v3.2 修复）。
-	 */
-	/**
-	 * 最小化 / 还原：折叠为仅顶栏（高度随顶栏收缩），再次点击还原。
+	 * 类加在窗口本体 `modalEl` 上并同步给 `panelEl`：窗口高度由 modalEl 的
+	 * 内联 height 决定，只加在 panelEl 上不会收缩（v3.2 修复）。
 	 *
 	 * 尺寸还原的关键在于**顺序**（v3.2 修复）：
 	 *  · 折叠时必须**先记录几何、再加折叠类**——`getBoundingClientRect()` 会强制重排，
@@ -520,7 +517,8 @@ export class MathBoxModal extends FloatingWindow implements PanelContext {
 			this.modalEl.style.removeProperty('left');
 			this.modalEl.style.removeProperty('top');
 			this.modalEl.style.removeProperty('width');
-			this.modalEl.style.removeProperty('height');		} else {
+			this.modalEl.style.removeProperty('height');
+		} else {
 			this.modalEl.classList.remove('is-maximized');
 			// 清除最大化时移除的内联尺寸，再写回还原几何
 			this.applyRect(this.clampRect(this.restoreRect ?? this.resolveInitialRect()));
@@ -717,13 +715,10 @@ export class MathBoxModal extends FloatingWindow implements PanelContext {
 	}
 
 	applyEnvironment(env: string): void {
-		// 源码为空时也允许插入：先搭出 `\begin{array}{cc} … \end{array}` 骨架再填内容。
-		// array 等需要列格式的环境由 core/latex 的 ENV_PREAMBLE 补默认参数，
-		// 否则 MathJax 会报 "Illegal preamble token ()"。
-		if (!env) {
-			this.setSource(applyEnvironment(this.source, env));
-			return;
-		}
+		// 源码为空时也允许插入（先搭出 `\begin{array}{cc} … \end{array}` 骨架再填内容）；
+		// 传空 env 表示解除包裹 —— 两种情况走同一条路径，core/latex 的 applyEnvironment
+		// 对空 env 会剥离环境后原样返回。array 等需要列格式的环境由 ENV_PREAMBLE
+		// 补默认参数，否则 MathJax 会报 "Illegal preamble token ()"。
 		this.setSource(applyEnvironment(this.source, env));
 	}
 

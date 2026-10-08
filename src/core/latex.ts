@@ -34,11 +34,6 @@ export function looksLikeLatex(input: string): boolean {
 	return /[_^]\s*\{?/.test(s);
 }
 
-/** 统计源码字符数（忽略首尾空白） */
-export function latexLength(input: string): number {
-	return input.trim().length;
-}
-
 /** 剥离最外层的 `\begin{env} ... \end{env}`，返回内部内容 */
 export function stripEnvironment(input: string): string {
 	const text = input.trim();

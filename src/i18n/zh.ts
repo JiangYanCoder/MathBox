@@ -10,12 +10,6 @@ export const zh = {
 	'common.close': '关闭',
 	'common.delete': '删除',
 	'common.rename': '重命名',
-	'common.insert': '插入',
-	'common.search': '搜索',
-	'common.copy': '复制',
-	'common.clear': '清空',
-	'common.reset': '恢复默认',
-	'common.default': '默认',
 
 	// ---- 顶栏 ----
 	'panel.title': 'MathBox',

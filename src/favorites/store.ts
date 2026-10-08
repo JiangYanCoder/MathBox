@@ -66,7 +66,10 @@ export function collectGroups(
 	};
 
 	for (const name of extraGroups) push(name.trim());
-	for (const item of items) push(groupIdOf(item) === UNGROUPED_ID ? '' : groupIdOf(item));
+	for (const item of items) {
+		const gid = groupIdOf(item);
+		push(gid === UNGROUPED_ID ? '' : gid);
+	}
 	return defs;
 }
 
@@ -153,17 +156,6 @@ export function renameFavorite(
 	return list.map((f) => (f.id === id ? { ...f, name: trimmed } : f));
 }
 
-export function updateFavoriteLatex(
-	list: readonly FavoriteItem[],
-	id: string,
-	latex: string,
-	style: FormulaStyle,
-): FavoriteItem[] {
-	return list.map((f) =>
-		f.id === id ? { ...f, latex: latex.trim(), style: { ...style }, usedAt: Date.now() } : f,
-	);
-}
-
 export function togglePin(list: readonly FavoriteItem[], id: string): FavoriteItem[] {
 	return list.map((f) => (f.id === id ? { ...f, pinned: !f.pinned } : f));
 }
@@ -223,22 +215,6 @@ export function sortFavorites(list: readonly FavoriteItem[]): FavoriteItem[] {
 		if (pinDiff !== 0) return pinDiff;
 		return b.usedAt - a.usedAt;
 	});
-}
-
-/** 分组重命名：改的是「名称即 id」的分组，需同步条目上的 group 字段 */
-export function renameGroup(
-	items: readonly FavoriteItem[],
-	groups: readonly string[],
-	from: string,
-	to: string,
-): { items: FavoriteItem[]; groups: string[] } {
-	const name = to.trim();
-	if (!from || !name || from === name) return { items: [...items], groups: [...groups] };
-	if (groups.includes(name)) return { items: [...items], groups: [...groups] };
-	return {
-		items: items.map((f) => (f.group === from ? { ...f, group: name } : f)),
-		groups: groups.map((g) => (g === from ? name : g)),
-	};
 }
 
 /** 删除分组时的条目处理方式 */

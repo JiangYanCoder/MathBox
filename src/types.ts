@@ -8,8 +8,6 @@ export type InsertMode = 'inline' | 'display';
 /** 界面语言设置（auto 跟随 Obsidian 界面语言） */
 export type LangSetting = 'auto' | 'zh' | 'en';
 
-/** 面板配色：auto 跟随 Obsidian 主题，light/dark 为面板独立配色 */
-
 /** 面板几何（拖拽 / 缩放后持久化） */
 export interface PanelRect {
 	x: number;

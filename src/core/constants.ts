@@ -29,15 +29,6 @@ export const PANEL_MIN_HEIGHT = 380;
 /** 上下分栏（渲染区 / 源码区）各自的最小高度（px）——防止某一块被压没 */
 export const SPLIT_MIN_PX = 120;
 
-/** 收藏夹悬停预览防抖 */
-export const FAVORITE_PREVIEW_MS = 500;
-
-/** 收藏条目超过该数量时启用虚拟滚动 */
-export const VIRTUAL_LIST_THRESHOLD = 100;
-
-/** 生产构建 main.js 体积门禁（KB） */
-export const MAIN_JS_GATE_KB = 150;
-
 /** PNG 导出缩放倍数 */
 export const PNG_SCALE = 3;
 

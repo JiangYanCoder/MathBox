@@ -255,17 +255,11 @@ export const EXTENSION_PACKAGES: readonly ExtensionPackage[] = [
 	},
 ];
 
-export const EXTENSION_IDS: readonly string[] = EXTENSION_PACKAGES.map((p) => p.id);
-
 /** 默认开关表 */
 export function defaultExtensionMap(): Record<string, boolean> {
 	const map: Record<string, boolean> = {};
 	for (const pkg of EXTENSION_PACKAGES) map[pkg.id] = pkg.defaultOn;
 	return map;
-}
-
-export function getExtensionPackage(id: string): ExtensionPackage | undefined {
-	return EXTENSION_PACKAGES.find((pkg) => pkg.id === id);
 }
 
 export interface InjectionPlan {

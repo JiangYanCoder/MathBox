@@ -3,7 +3,7 @@
  */
 
 import { Editor, MarkdownFileInfo, MarkdownView, Platform } from 'obsidian';
-import { MathBoxModal, resolvePrefill } from '../panel/MathBoxModal';
+import { resolvePrefill } from '../panel/MathBoxModal';
 import { MATHBOX_VIEW_TYPE } from '../panel/MathBoxView';
 import type MathBoxPlugin from '../main';
 
@@ -123,11 +123,3 @@ export function registerCommands(plugin: MathBoxPlugin): void {
 		},
 	});
 }
-
-/** 供外部（如测试）直接打开面板 */
-export function openPanelFromView(plugin: MathBoxPlugin): void {
-	const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-	plugin.openPanel({ source: 'command', editor: view?.editor ?? null });
-}
-
-export { MathBoxModal };
