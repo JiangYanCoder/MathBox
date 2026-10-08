@@ -1,50 +1,163 @@
-name: Release Obsidian plugin
+name: Release
 
+# 触发方式：
+#   1. 推送形如 v1.2.3 或 1.2.3 的 tag（推荐，版本以 tag 为准）
+#   2. 仓库页面 Actions → Release → Run workflow，手动触发
+#      （版本号取自 manifest.json，tag 自动命名为 v<manifest.version>）
 on:
     push:
         tags:
-            - '*'
+            - 'v[0-9]+.[0-9]+.[0-9]+*'
+            - '[0-9]+.[0-9]+.[0-9]+*'
+    workflow_dispatch:
+        inputs:
+            draft:
+                description: '创建为草稿（不立即对外发布）'
+                type: boolean
+                required: false
+                default: false
+            prerelease:
+                description: '标记为预发布版本'
+                type: boolean
+                required: false
+                default: false
+
+permissions:
+    contents: write
 
 jobs:
-    build:
+    release:
+        name: 构建并发布 Release
         runs-on: ubuntu-latest
-        permissions:
-            contents: write
-            id-token: write
-            attestations: write
+        timeout-minutes: 15
+
         steps:
             - uses: actions/checkout@v6
+              with:
+                  # 手动触发时 checkout 默认分支；tag 触发时自动 checkout 该 tag
+                  fetch-depth: 0
 
-            - name: Use Node.js
+            - name: 使用 Node.js
               uses: actions/setup-node@v6
               with:
-                  node-version: 24
+                  node-version: '24'
                   cache: 'npm'
 
-            - name: Build plugin
+            # npm ci 依赖 package-lock.json 与仓库严格一致，不可改用 npm install
+            - name: 安装依赖
+              run: npm ci
+
+            # ---------- 1. 解析并校验版本号 ----------
+            - name: 解析版本号并校验与 manifest 一致
+              id: ver
               run: |
-                  npm ci
-                  npm run build
+                  set -euo pipefail
+                  MANIFEST_VERSION="$(node -p "require('./manifest.json').version")"
+                  echo "manifest.json version = ${MANIFEST_VERSION}"
 
-            - name: Check for optional styles
-              id: styles
+                  if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+                    TAG="${GITHUB_REF_NAME}"
+                    TAG_VER="${TAG#v}"          # 允许 tag 带 v 前缀
+                  else
+                    TAG_VER="${MANIFEST_VERSION}"
+                    TAG="v${TAG_VER}"
+                  fi
+
+                  if [ "${TAG_VER}" != "${MANIFEST_VERSION}" ]; then
+                    echo "::error::tag 版本 (${TAG_VER}) 与 manifest.json 版本 (${MANIFEST_VERSION}) 不一致，请先同步 manifest.json 再打 tag"
+                    exit 1
+                  fi
+
+                  echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+                  echo "version=${TAG_VER}" >> "$GITHUB_OUTPUT"
+
+            # ---------- 2. 构建 ----------
+            # npm run build = tsc 类型检查 + esbuild 生产构建 + 体积门禁（≤150 KB）
+            - name: 构建插件
+              run: npm run build
+
+            # ---------- 3. 校验发布产物 ----------
+            # 只允许 main.js / manifest.json / styles.css 进入 Release；
+            # data.json（运行期设置，含用户收藏）、src、node_modules、
+            # esbuild.config.mjs、.gitignore 等一律不发布。
+            - name: 校验发布产物
               run: |
-                  [ -f styles.css ] && echo "exists=true" >> "$GITHUB_OUTPUT" || echo "exists=false" >> "$GITHUB_OUTPUT"
+                  set -euo pipefail
+                  for f in main.js manifest.json styles.css; do
+                    if [ ! -f "$f" ]; then
+                      echo "::error::缺少必需产物 ${f}"
+                      exit 1
+                    fi
+                  done
+                  # data.json 属运行期设置，显式确认它不在上传清单中
+                  echo "将上传（且仅上传）以下三个文件："
+                  printf '  %s\n' main.js manifest.json styles.css
+                  du -h main.js manifest.json styles.css
 
-            - name: Attest build provenance
-              uses: actions/attest@v4
-              with:
-                  subject-path: |
-                      main.js
-                      ${{ steps.styles.outputs.exists == 'true' && 'styles.css' || '' }}
+            # ---------- 4. 生成 Release 说明（tag 说明作为 release body）----------
+            - name: 生成 release body
+              id: notes
+              run: |
+                  set -euo pipefail
+                  NOTES="$(mktemp)"
+                  {
+                    echo "## MathBox ${{ steps.ver.outputs.version }}"
+                    echo
+                    echo "提交：\`$(git log -1 --pretty=%h)\` — $(git log -1 --pretty=%s)"
+                    echo
+                    echo "### 本次变更"
+                    echo
+                    echo '```'
+                    git log -1 --pretty=%B
+                    echo '```'
+                    echo
+                    echo "### 安装"
+                    echo
+                    echo "1. 下载下方 \`main.js\`、\`manifest.json\`、\`styles.css\` 三个文件"
+                    echo "2. 在 vault 的 \`<vault>/.obsidian/plugins/obsidian-math-box/\` 创建同名文件夹"
+                    echo "   （文件夹名必须与 \`manifest.json\` 的 \`id\` 完全一致）"
+                    echo "3. 把三个文件放入该文件夹"
+                    echo "4. 重启 Obsidian，或在「第三方插件」中重新开启 MathBox"
+                  } > "$NOTES"
+                  echo "path=${NOTES}" >> "$GITHUB_OUTPUT"
 
-            - name: Create release
+            # ---------- 5. 创建 GitHub Release 并上传三个产物 ----------
+            - name: 创建 GitHub Release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  TAG: ${{ steps.ver.outputs.tag }}
+                  DRAFT: ${{ inputs.draft || false }}
+                  PRERELEASE: ${{ inputs.prerelease || false }}
               run: |
-                  tag="${GITHUB_REF#refs/tags/}"
+                  set -euo pipefail
+                  # 幂等：该 tag 已有 Release 时先删除再重建（gh 不支持覆盖上传）
+                  if gh release view "$TAG" >/dev/null 2>&1; then
+                    echo "::warning::tag ${TAG} 已有 Release，先删除后重建"
+                    gh release delete "$TAG" --yes
+                  fi
 
-                  gh release create "$tag" \
-                    --title="$tag" \
-                    --draft \
-                    main.js manifest.json ${{ steps.styles.outputs.exists == 'true' && 'styles.css' || '' }}
+                  gh release create "$TAG" \
+                    --title "MathBox ${{ steps.ver.outputs.version }}" \
+                    --notes-file "${{ steps.notes.outputs.path }}" \
+                    --draft "$DRAFT" \
+                    --prerelease "$PRERELEASE" \
+                    main.js manifest.json styles.css
+
+                  echo "::notice::Release ${TAG} 创建成功"
+
+            # ---------- 6. 输出 BR 安装信息 ----------
+            - name: 输出 BR 安装信息
+              if: always()
+              env:
+                  TAG: ${{ steps.ver.outputs.tag }}
+                  REPO: ${{ github.repository }}
+              run: |
+                  {
+                    echo "### BR（Beta Raply）用户安装方式"
+                    echo
+                    echo "| 项 | 取值 |"
+                    echo "| --- | --- |"
+                    echo "| 仓库 | \`${REPO}\` |"
+                    echo "| Release 标签 | \`${TAG}\` |"
+                    echo "| 下载文件 | \`main.js\`、\`manifest.json\`、\`styles.css\` |"
+                  } >> "$GITHUB_STEP_SUMMARY"
