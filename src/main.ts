@@ -37,6 +37,9 @@ export default class MathBoxPlugin extends Plugin {
 
 	private panel: MathBoxModal | null = null;
 
+	/** 当前这一轮延迟补写的取消函数；每次 installExtensions 都会替换 */
+	private cancelDeferredInjection: (() => void) | null = null;
+
 	/** 是否有尚未落盘的设置变更（防抖窗口内为 true，写入成功后复位） */
 	private saveDirty = false;
 
@@ -62,8 +65,12 @@ export default class MathBoxPlugin extends Plugin {
 
 		// 启动扩展包：必须在 MathJax 初始化前写入 window.MathJax（详见 core/extensions.ts）
 		// 宿主会用「整体赋值 window.MathJax」的方式写自己的配置，这里接管该赋值，
-		// 宿主一写入就立刻合并我们的扩展包配置，随后 MathJax 启动即读到合并结果
-		installMathJaxConfigGuard(() => this.settings.extensions);
+		// 宿主一写入就立刻合并我们的扩展包配置，随后 MathJax 启动即读到合并结果。
+		// register 会在卸载时还原属性访问器 —— 不还原的话它既吊住插件实例，
+		// 又会让已卸载的插件继续改宿主的 MathJax 配置
+		this.register(installMathJaxConfigGuard(() => this.settings.extensions));
+		// 卸载时清掉尚未触发的补写定时器（每次 installExtensions 都会换一批新的）
+		this.register(() => this.cancelDeferredInjection?.());
 		this.installExtensions();
 
 		// 注册工作区视图：面板可成为标签页（吸附）或独立窗口（moveLeafToPopout）
@@ -163,8 +170,11 @@ export default class MathBoxPlugin extends Plugin {
 	installExtensions(): void {
 		try {
 			this.extensionMode = applyExtensionInjection(this.settings.extensions).mode;
-			// 宿主会用整体覆盖的方式写 window.MathJax，故在其之后择机补写一次
-			scheduleDeferredInjection(this.settings.extensions);
+			// 宿主会用整体覆盖的方式写 window.MathJax，故在其之后择机补写一次。
+			// 先取消上一轮：设置页连点开关会在 0~1200 ms 内叠出多轮定时器，而每轮的
+			// enabled 是当时的快照、merge 又只做并集，会让「刚关掉的包」被并回来
+			this.cancelDeferredInjection?.();
+			this.cancelDeferredInjection = scheduleDeferredInjection(this.settings.extensions);
 		} catch {
 			this.extensionMode = 'none';
 		}
