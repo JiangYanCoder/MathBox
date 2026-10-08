@@ -39,6 +39,12 @@ jobs:
             - name: Lint
               run: npm run lint
 
+            # 自检：纯逻辑层与数据表完整性（scripts/selftest.ts 打包后运行）
+            # 含宏展开与宏表的一致性断言 —— 二者不同步会让插入的公式
+            # 「当场能渲染、换个会话就报错」
+            - name: 自检
+              run: npm run selftest
+
             # esbuild 生产构建 + scripts/check-size.mjs 体积门禁（≤150 KB）
             - name: 构建并检查体积
               run: npm run build

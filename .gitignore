@@ -20,6 +20,9 @@ data.json
 scripts/*.log
 scripts/temp/
 
+# 自检脚本的打包产物（npm run selftest 生成，源码是 scripts/selftest.ts）
+scripts/selftest.mjs
+
 # 编辑器与系统垃圾
 .vscode/
 .idea/
