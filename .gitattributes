@@ -1,0 +1,17 @@
+# 换行统一为 LF（仓库内一律 LF，任何平台检出都是 LF）
+#
+# 背景：本机 core.autocrlf=true，检出时会把 LF 转成 CRLF，于是 git 在每次
+# add 时都输出大量「LF will be replaced by CRLF」警告；而 CI 跑在 Linux 上，
+# 工作流里的 shell 脚本（release.yml / bump-version.yml）对 CRLF 也很敏感。
+# 显式声明 eol=lf 的优先级高于 core.autocrlf，警告随之消失。
+* text=auto eol=lf
+
+# 二进制文件不做任何换行转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.zip binary
