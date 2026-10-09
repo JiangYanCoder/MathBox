@@ -29,3 +29,7 @@ scripts/selftest.mjs
 .DS_Store
 Thumbs.db
 *.swp
+
+# Claude Code 个人权限配置（含本机放行的命令，不应入库）
+# 注意：只忽略 settings.local.json；.claude/ 下的项目级配置（skills、commands 等）仍可入库
+.claude/settings.local.json
