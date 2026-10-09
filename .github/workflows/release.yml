@@ -122,35 +122,49 @@ jobs:
                   } > "$NOTES"
                   echo "path=${NOTES}" >> "$GITHUB_OUTPUT"
 
-            # ---------- 5. 创建 GitHub Release 并上传三个产物 ----------
-            - name: 创建 GitHub Release
+            # ---------- 5. 创建或更新 GitHub Release（上传三个产物）----------
+            - name: 创建或更新 GitHub Release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   TAG: ${{ steps.ver.outputs.tag }}
+                  VERSION: ${{ steps.ver.outputs.version }}
+                  NOTES: ${{ steps.notes.outputs.path }}
                   DRAFT: ${{ inputs.draft || false }}
                   PRERELEASE: ${{ inputs.prerelease || false }}
               run: |
                   set -euo pipefail
-                  # 幂等：该 tag 已有 Release 时先删除再重建（gh 不支持覆盖上传）
-                  if gh release view "$TAG" >/dev/null 2>&1; then
-                    echo "::warning::tag ${TAG} 已有 Release，先删除后重建"
-                    gh release delete "$TAG" --yes
-                  fi
-
                   # 注意：--draft / --prerelease 是布尔开关（Go pflag），必须写成
                   # --flag=<值> 形式。写成 `--draft "$DRAFT"` 会被解析成「--draft 为真
                   # + 多出一个名为 false 的位置参数」，而 gh release create 的位置参数
                   # 被当作待上传文件 —— 于是它去打开名为 false 的文件，报
                   # no such file or directory 并立刻退出（首次打 tag 就是挂在这里）。
-                  echo "draft=${DRAFT} prerelease=${PRERELEASE}"
-                  gh release create "$TAG" \
-                    --title "MathBox ${{ steps.ver.outputs.version }}" \
-                    --notes-file "${{ steps.notes.outputs.path }}" \
-                    --draft="$DRAFT" \
-                    --prerelease="$PRERELEASE" \
-                    main.js manifest.json styles.css
+                  echo "tag=${TAG} draft=${DRAFT} prerelease=${PRERELEASE}"
 
-                  echo "::notice::Release ${TAG} 创建成功"
+                  if gh release view "$TAG" >/dev/null 2>&1; then
+                    # 已存在 → **就地更新，绝不删除**。
+                    #
+                    # 为什么不能"先删后建"：在网页点 Publish 时 GitHub 才会创建 tag，
+                    # 而"创建 tag"对 Actions 就是一个 push 事件 → 本工作流会再次触发。
+                    # 若走删除路径，就等于把一个刚刚发布成功的 Release 先删掉再重建；
+                    # 一旦删除之后那一步失败，用户会落到"只剩 tag、没有 Release"的状态，
+                    # 而且正好发生在他以为已经发布成功之后。
+                    #
+                    # 就地更新不做三件事：不改 draft / prerelease 状态（本次运行无权
+                    # 把一个已发布的 Release 打回草稿），不动 tag 指向，不重置下载计数。
+                    echo "::notice::tag ${TAG} 已有 Release，就地更新资产与说明（不删除）"
+                    gh release upload "$TAG" main.js manifest.json styles.css --clobber
+                    gh release edit "$TAG" \
+                      --title "MathBox ${VERSION}" \
+                      --notes-file "$NOTES"
+                  else
+                    gh release create "$TAG" \
+                      --title "MathBox ${VERSION}" \
+                      --notes-file "$NOTES" \
+                      --draft="$DRAFT" \
+                      --prerelease="$PRERELEASE" \
+                      main.js manifest.json styles.css
+                    echo "::notice::Release ${TAG} 创建成功"
+                  fi
 
             # ---------- 6. 输出 BR 安装信息 ----------
             - name: 输出 BR 安装信息
