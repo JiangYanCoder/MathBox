@@ -1,7 +1,7 @@
 /**
  * MathBox 插件入口
  *
- * 职责边界（遵循 AGENTS.md）：本文件只做插件生命周期与跨模块编排，
+ * 职责边界：本文件只做插件生命周期与跨模块编排，
  * 具体功能分散在 core / i18n / symbols / templates / favorites / exporter / panel / commands。
  */
 
