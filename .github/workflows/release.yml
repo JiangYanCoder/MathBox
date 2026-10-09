@@ -3,7 +3,7 @@ name: Release
 # 触发方式：
 #   1. 推送形如 1.2.3 的 tag（推荐，版本以 tag 为准）
 #      —— **不带 v 前缀**，且必须与 manifest.json 的 version 完全一致；
-#      Obsidian 更新器与社区目录按 tag / 版本字面匹配（见 AGENTS.md）
+#      Obsidian 更新器与社区目录按 tag / 版本字面匹配
 #   2. 仓库页面 Actions → Release → Run workflow，手动触发
 #      （版本号取自 manifest.json，tag 即版本号本身）
 on:
