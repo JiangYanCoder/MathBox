@@ -14,7 +14,6 @@ import { App, Editor, MarkdownView, leaves, notices } from './obsidian-stub';
 import { MathBoxSettingTab } from '../../src/settings';
 import { EXTENSION_PACKAGES } from '../../src/core/extensions';
 import { SYMBOL_GROUPS } from '../../src/symbols';
-import { SYMBOL_RENDER_FALLBACKS } from '../../src/symbols/rendered';
 import { TEMPLATE_GROUPS } from '../../src/templates';
 import { applyEnvironment, buildMatrixLatex, clampMatrixSize } from '../../src/core/latex';
 import { applyStyleEdit, detectStyle } from '../../src/core/wrap';
@@ -173,54 +172,6 @@ async function main(): Promise<void> {
 		String(qAll('.mathbox-side-body .mathbox-symbol').length),
 	);
 	check('内容区可滚动', sideBody.scrollHeight > sideBody.clientHeight, `${sideBody.scrollHeight}/${sideBody.clientHeight}`);
-
-	// ---- 符号渲染化（v3.3）：按钮内是构建期预渲染的 CHTML 片段，不再是 Unicode 文本 ----
-	{
-		const cssText = q('#mathbox-symbol-css')?.textContent ?? '';
-		check('已注入符号所需的 CHTML 样式表', cssText.length > 0, `${cssText.length} 字符`);
-		check('样式表含字形 ::before content（否则按钮一片空白）', cssText.includes('content:'));
-		// 作用域：不前缀会盖掉宿主正文里已渲染的公式
-		const strippedCss = cssText.replace(/"(?:[^"\\]|\\.)*"/g, '""');
-		const unscoped = strippedCss
-			.split('}')
-			.map((r) => r.trim())
-			.filter(Boolean)
-			.filter((r) => !r.startsWith('.mathbox-symbol-math '));
-		check('样式表每条规则都带作用域前缀（不污染正文渲染）', unscoped.length === 0, unscoped.slice(0, 2).join(' | '));
-
-		const total = SYMBOL_GROUPS.reduce((n, g) => n + g.items.length, 0);
-		const mathBtns = qAll<HTMLElement>('.mathbox-side-body .mathbox-symbol.is-math');
-		check(
-			`渲染化按钮数 = 条目数 − 回退数（${mathBtns.length}/${total - SYMBOL_RENDER_FALLBACKS.length}）`,
-			mathBtns.length === total - SYMBOL_RENDER_FALLBACKS.length,
-			String(mathBtns.length),
-		);
-		check('每个渲染化按钮内含 mjx-container > mjx-math', mathBtns.every((b) => b.querySelector('mjx-container mjx-math') !== null));
-		check('渲染化按钮不再直接显示 Unicode 文本', mathBtns.every((b) => (b.textContent ?? '') === ''));
-		check('渲染化按钮保留可检索的 label / tex 标记', mathBtns.every((b) => (b.dataset.label ?? '') !== '' && (b.dataset.tex ?? '') !== ''));
-		check('片段内不含未替换的 CURSOR', mathBtns.every((b) => !b.innerHTML.includes('\u0000')));
-		// 尺寸非零才说明注入的样式表真的命中了 mjx-c（字形是 ::before content，没 CSS 就是空白）
-		const inners = qAll<HTMLElement>('.mathbox-side-body .mathbox-symbol-math');
-		// 宽度非零才说明注入的样式表命中了 mjx-c（字形是 ::before content，没 CSS 就是空白）。
-		// 排除 `\\`：换行渲染出来就是个零尺寸的换行盒，不代表样式没生效
-		const sized = inners.filter((el) => el.parentElement?.getAttribute('data-tex') !== '\\\\');
-		check(
-			`除换行条目外，片段都能量出宽度（样式表已生效）(${sized.length} 条)`,
-			sized.length > 0 && sized.every((el) => el.offsetWidth > 0),
-			sized
-				.filter((el) => el.offsetWidth <= 0)
-				.slice(0, 3)
-				.map((el) => el.parentElement?.getAttribute('data-tex') ?? '?')
-				.join(' | '),
-		);
-		// 渲染失败的条目（如 "&"）必须仍以文本形式可用，不能变成空按钮
-		const fallbackShown = SYMBOL_RENDER_FALLBACKS.every((tex) =>
-			qAll<HTMLElement>('.mathbox-side-body .mathbox-symbol:not(.is-math)').some(
-				(b) => b.dataset.tex === tex && (b.textContent ?? '') !== '',
-			),
-		);
-		check(`渲染失败条目回退为文本（${SYMBOL_RENDER_FALLBACKS.length} 条）`, fallbackShown, SYMBOL_RENDER_FALLBACKS.join(' | '));
-	}
 
 	symSelect?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 	await sleep(30);
@@ -1031,8 +982,7 @@ async function main(): Promise<void> {
 		check('行列数越界被夹紧到 1 / 20', clampMatrixSize(0) === 1 && clampMatrixSize(99) === 20 && clampMatrixSize(NaN) === 1, `${clampMatrixSize(0)}/${clampMatrixSize(99)}`);
 		check('大尺寸退化为空占位', buildMatrixLatex(12, 12, 'matrix').includes('{}'), buildMatrixLatex(12, 12, 'matrix').slice(0, 60));
 		check('分号环境可选', buildMatrixLatex(1, 2, 'cases').includes('\\begin{cases}'), '');
-		// 渲染化后按钮内容为空（片段是 CHTML），改名与否只能看 data-label
-		check('符号条目「2行公式」已改名', qAll<HTMLElement>('.mathbox-symbol').some((el) => el.dataset.label === '⇉ 2行公式'));
+		check('符号条目「2行公式」已改名', qAll('.mathbox-symbol').some((el) => el.textContent === '⇉ 2行公式'));
 		check('模板条目「多行公式」已改名', TEMPLATE_GROUPS.some((g) => g.items.some((it) => it.name.zh === '多行公式')));
 	}
 
