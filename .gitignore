@@ -13,9 +13,6 @@ release/
 # 本地发布与测试目录
 发布流程说明.md
 
-# 面向 AI 编程代理的项目说明：本地保留（继续对本机会话生效），但不对外发布
-AGENTS.md
-
 # 本地插件数据（用户设置不应提交）
 data.json
 
@@ -36,3 +33,6 @@ Thumbs.db
 # Claude Code 个人权限配置（含本机放行的命令，不应入库）
 # 注意：只忽略 settings.local.json；.claude/ 下的项目级配置（skills、commands 等）仍可入库
 .claude/settings.local.json
+
+# codegraph 本地索引（不入库）
+.codegraph/
