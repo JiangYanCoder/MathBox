@@ -863,8 +863,7 @@ body.mathbox-resizing {
 .mathbox-symbol-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(32px, 1fr));
-	/* 定高行：符号已渲染化，高度差异由片段缩放吸收（auto 会让高条目撑高整行） */
-	grid-auto-rows: 34px;
+	grid-auto-rows: minmax(30px, auto);
 	grid-auto-flow: row dense;
 	gap: 4px;
 }
@@ -890,29 +889,6 @@ body.mathbox-resizing {
 .mathbox-symbol:hover {
 	background: var(--background-modifier-hover);
 	border-color: var(--interactive-accent);
-}
-
-/* 渲染化符号（v3.3）：按钮内放构建期预渲染的 MathJax CHTML 片段。
- * 字号统一由 .mathbox-symbol-math 给定 —— CHTML 内部一律用 em 排版，
- * 故全表同源、观感一致；装不下的条目由 JS 量完尺寸后 transform: scale() 收缩
- * （见 sideSection.fitSymbols），缩放原点居中，不影响格子布局。 */
-.mathbox-symbol.is-math {
-	padding: 0;
-	overflow: hidden;
-}
-
-.mathbox-symbol-math {
-	flex: 0 0 auto;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	font-size: 15px;
-	line-height: 0;
-	transform-origin: center;
-}
-
-.mathbox-symbol-math mjx-container {
-	flex: 0 0 auto;
 }
 
 .mathbox-template-list {

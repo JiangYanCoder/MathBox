@@ -206,8 +206,6 @@ export class MathBoxModal extends FloatingWindow implements PanelContext {
 		this.sideResizer.title = this.t('panel.resizeSide');
 
 		body.appendChild(this.sideSection.el);
-		// 符号片段的缩放要量尺寸，必须等挂进文档后再算（脱离文档时 offsetWidth 为 0）
-		this.sideSection.relayout();
 
 		this.splitterEl = splitter;
 		this.attachSplitter(splitter);
@@ -544,8 +542,6 @@ export class MathBoxModal extends FloatingWindow implements PanelContext {
 		const collapsed = this.panelEl.classList.toggle('is-side-collapsed');
 		this.plugin.settings.sidePaneOpen = !collapsed;
 		this.plugin.queueSave();
-		// 折叠期间侧边栏 display:none，量不出尺寸；展开后补算一次缩放
-		if (!collapsed) this.sideSection.relayout();
 	}
 
 	private applySidePaneState(): void {

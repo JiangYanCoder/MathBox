@@ -10,13 +10,7 @@ import { buildInjectionPlan, EXTENSION_PACKAGES, defaultExtensionMap } from '../
 import { SYMBOL_GROUPS } from '../src/symbols';
 import { TEMPLATE_GROUPS } from '../src/templates';
 import { CURSOR } from '../src/core/constants';
-import {
-	SYMBOL_CHTML,
-	SYMBOL_CHAR_CSS,
-	SYMBOL_BASE_CSS,
-	SYMBOL_MATH_SCOPE,
-	SYMBOL_RENDER_FALLBACKS,
-} from '../src/symbols/rendered.generated';
+import { SYMBOL_CHTML, SYMBOL_CHAR_CSS, SYMBOL_RENDER_FALLBACKS } from '../src/symbols/rendered.generated';
 
 let failed = 0;
 
@@ -238,40 +232,12 @@ const nulFragments = Object.values(SYMBOL_CHTML).filter((html) => html.includes(
 check('片段不含未替换的 CURSOR（渲染前已换成占位符）', nulFragments.length === 0);
 check('字符 CSS 含 .mjx-c 字形规则', SYMBOL_CHAR_CSS.includes('.mjx-c'));
 check('字符 CSS 含 ::before content（否则按钮空白）', SYMBOL_CHAR_CSS.includes('content:'));
-// 作用域：注入的 CSS 若不带前缀，会盖掉宿主正文里已渲染的公式
-const SCOPE_SELECTOR = `.${SYMBOL_MATH_SCOPE}`;
-/** 剔除字符串字面量后再按 '}' 切规则 —— 字形内容里存在 content:"}" 这类字面花括号 */
-const unscopedRules = (css: string): string[] =>
-	css
-		.replace(/"(?:[^"\\]|\\.)*"/g, '""')
-		.split('}')
-		.map((r) => r.trim())
-		.filter(Boolean)
-		.filter((r) => !r.startsWith(`${SCOPE_SELECTOR} `));
-
-const baseUnscoped = unscopedRules(SYMBOL_BASE_CSS);
-const charUnscoped = unscopedRules(SYMBOL_CHAR_CSS);
-check(
-	`结构 CSS 每条规则都限定在 ${SCOPE_SELECTOR} 内（不污染宿主正文）`,
-	baseUnscoped.length === 0,
-	baseUnscoped.slice(0, 2).join(' | '),
-);
-check(
-	'字符 CSS 每条规则都带作用域前缀',
-	charUnscoped.length === 0,
-	charUnscoped.slice(0, 2).join(' | '),
-);
-check('两份 CSS 均不含 font-family（字体族必须由宿主提供）', !SYMBOL_BASE_CSS.includes('font-family') && !SYMBOL_CHAR_CSS.includes('font-family'));
-check('两份 CSS 均不含 url()（零网络请求）', !/url\(/.test(SYMBOL_BASE_CSS + SYMBOL_CHAR_CSS));
-check('结构 CSS 含 mjx-math 版面规则', SYMBOL_BASE_CSS.includes('mjx-math'));
-
 const fragKb = Object.values(SYMBOL_CHTML).join('').length / 1024;
-const baseKb = SYMBOL_BASE_CSS.length / 1024;
 const cssKb = SYMBOL_CHAR_CSS.length / 1024;
-const totalKb = fragKb + baseKb + cssKb;
+const totalKb = fragKb + cssKb;
 check(
-	`片段 + 两份 CSS 在预算内（${fragKb.toFixed(1)} + ${baseKb.toFixed(1)} + ${cssKb.toFixed(1)} = ${totalKb.toFixed(1)} KB ≤ 180 KB）`,
-	totalKb <= 180,
+	`片段 + 字符 CSS 在预算内（${fragKb.toFixed(1)} + ${cssKb.toFixed(1)} = ${totalKb.toFixed(1)} KB ≤ 160 KB）`,
+	totalKb <= 160,
 );
 
 console.log('\n[9] 构建链与体积门禁');
