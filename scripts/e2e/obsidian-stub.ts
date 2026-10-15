@@ -450,15 +450,30 @@ export function setIcon(host: HTMLElement, name: string): void {
 export function loadMathJax(): Promise<void> {
 	const w = window as unknown as { MathJax?: Record<string, unknown> };
 	const mj = w.MathJax ?? {};
-	mj.tex2chtml = (latex: string): HTMLElement => renderMath(latex);
-	mj.startup = { ...((mj.startup as Record<string, unknown>) ?? {}), document: {} };
+	// 只在没有真实 MathJax 时注入替身：截图核验页会先加载宿主的
+	// obsidian-mathjax.js，此时必须用真实的 tex2chtml，替身会把真实渲染顶掉
+	if (typeof mj.tex2chtml !== 'function') {
+		const stubTex2chtml = (latex: string): HTMLElement => renderMath(latex);
+		// 打上替身标记：renderMath 只委托真实 MathJax，避免替身自委托无限递归
+		(stubTex2chtml as unknown as { __mathboxStub: boolean }).__mathboxStub = true;
+		mj.tex2chtml = stubTex2chtml;
+		mj.startup = { ...((mj.startup as Record<string, unknown>) ?? {}), document: {} };
+	}
 	w.MathJax = mj;
 	return Promise.resolve();
 }
 
-export function renderMath(latex: string): HTMLElement {
+export function renderMath(latex: string, display?: boolean): HTMLElement {
+	// 截图核验环境：宿主真实 MathJax 已就绪时直接走真渲染（CHTML + Computer Modern）；
+	// 常规 e2e 无真实 MathJax，走文本替身（span.mjx-container[data-tex]），供结构断言
+	const real = (window as unknown as { MathJax?: { tex2chtml?: (src: string, opts?: unknown) => HTMLElement } }).MathJax?.tex2chtml;
+	if (typeof real === 'function' && !(real as unknown as { __mathboxStub?: boolean }).__mathboxStub) {
+		return real(latex, { display: display ?? false });
+	}
 	const el = createEl('span', { cls: 'mjx-container' });
 	el.setAttribute('data-tex', latex);
+	// display 模式（多行环境）：与真实宿主一致地打标记，供结构断言使用
+	if (display) el.setAttribute('data-display', 'true');
 	el.textContent = latex;
 	return el;
 }

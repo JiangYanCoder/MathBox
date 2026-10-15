@@ -999,6 +999,50 @@ body.theme-dark .mathbox-fav-item:hover .mathbox-fav-latex {
 	border-color: #45474f;
 }
 
+/* ===================== 公式预览（模板 / 收藏夹 共用） =====================
+ *
+ * 两处条目的展示区由 `.mathbox-formula` 承载，内容由**宿主 renderMath** 渲染：
+ * 字体（Computer Modern / TeX）、字号、行高、基线、间距、颜色全部沿用正文公式
+ * 的同一套规则 —— CHML 用 em 计量，故这里把容器字号钉到正文默认字号，
+ * 使预览与笔记正文里的公式视觉大小严格一致。
+ *
+ * 渲染前先写 LaTeX 源码作占位（等宽灰字），渲染成功后替换为 mjx-container，
+ * 容器高度**完全由公式实际高度撑开**（不做定高、不裁剪行数）。
+ */
+.mathbox-formula {
+	display: block;
+	width: 100%;
+	box-sizing: border-box;
+	/* 高度自适应：纵向不设限，超宽公式横向可滚 */
+	overflow-x: auto;
+	overflow-y: hidden;
+}
+
+/* 占位态 / 失败态：等宽源码文本（MathJax 尚未就绪或公式非法时可见） */
+.mathbox-formula:not(.is-rendered) {
+	font-family: var(--font-monospace);
+	font-size: 12.5px;
+	line-height: 1.55;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	word-break: break-word;
+}
+
+/* 已渲染：把排版权交还宿主，去掉占位态的等宽字体 / 行高 / 空白约束；
+ * 字号钉到正文默认字号 → CHTML 的 em 计量与笔记正文公式一致 */
+.mathbox-formula.is-rendered {
+	font-family: inherit;
+	font-size: var(--font-text-size, 1rem);
+	line-height: normal;
+	white-space: normal;
+	word-break: normal;
+}
+
+/* 宿主 CHTML 块级容器自带 1em 上下外边距；预览区已有内边距，归零避免过高 */
+.mathbox-formula.is-rendered > mjx-container {
+	margin: 0 !important;
+}
+
 /* ===== 分组管理弹窗（删除分组） ===== */
 
 .mathbox-group-list {

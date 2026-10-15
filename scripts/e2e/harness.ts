@@ -246,6 +246,8 @@ async function main(): Promise<void> {
 	// ---- 公式模板页：同一组件，同样为「全部分组 + 点选跳转」 ----
 	const tabs = qAll('.mathbox-side-tabs .mathbox-tab');
 	tabs[1]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+	// 公式渲染是异步的（await 宿主 MathJax 就绪），断言前必须让微任务跑完
+	await sleep(50);
 	const tplSelect = q<HTMLElement>('.mathbox-gselect');
 	check('模板页显示分类选择按钮', Boolean(tplSelect));
 	check('默认显示首个分类', q('.mathbox-gselect-label')?.textContent === TEMPLATE_GROUPS[0]?.name.zh, q('.mathbox-gselect-label')?.textContent ?? '(none)');
@@ -262,10 +264,25 @@ async function main(): Promise<void> {
 		const ls = tplLatex ? getComputedStyle(tplLatex) : null;
 		check('模板按钮：flex-shrink = 0（不被压扁）', tpl !== null && getComputedStyle(tpl).flexShrink === '0', tpl ? getComputedStyle(tpl).flexShrink : '(none)');
 		check('模板按钮：宽度随容器自适应', tpl !== null && getComputedStyle(tpl).width !== 'auto' && tpl?.style.width !== '0px');
+		// 展示区已改公式预览：占位态是源码文本，渲染成功后由宿主排版接管，
+		// 因此只固定校验「不裁剪 + 可横向滚动 + 高度自适应」，不再断言等宽换行属性
 		check(
-			'模板代码块：完整展示（换行 + 不裁剪 + 可横向滚动）',
-			ls !== null && ls.whiteSpace === 'pre-wrap' && ls.overflowWrap === 'anywhere' && ls.maxHeight === 'none' && ls.overflowX === 'auto',
-			ls ? `${ls.whiteSpace}/${ls.overflowWrap}/${ls.maxHeight}/${ls.overflowX}` : '(none)',
+			'模板展示区：不裁剪 + 可横向滚动',
+			ls !== null && ls.maxHeight === 'none' && ls.overflowY === 'hidden' && ls.overflowX === 'auto',
+			ls ? `${ls.maxHeight}/${ls.overflowY}/${ls.overflowX}` : '(none)',
+		);
+		check(
+			'模板展示区：是公式容器（挂 data-tex / data-display）',
+			tplLatex !== null &&
+				tplLatex.classList.contains('mathbox-formula') &&
+				typeof tplLatex.dataset.tex === 'string' &&
+				tplLatex.dataset.tex.length > 0,
+			tplLatex ? `${tplLatex.className}/${tplLatex.dataset.tex}` : '(none)',
+		);
+		check(
+			'模板公式已渲染（宿主 renderMath 产物）',
+			tplLatex?.classList.contains('is-rendered') === true && Boolean(tplLatex?.querySelector('.mjx-container')),
+			tplLatex ? `${tplLatex.className}/${tplLatex.dataset.display}` : '(none)',
 		);
 		check('模板标题：不设行数上限（不省略）', tplName !== null && getComputedStyle(tplName).webkitLineClamp === 'none', tplName ? getComputedStyle(tplName).webkitLineClamp : '(none)');
 		// 真实测量：按钮高度必须容得下「标题 + 代码块」（此前被 flex 压扁时仅 ~34 px）
@@ -315,6 +332,39 @@ async function main(): Promise<void> {
 		qAll('.mathbox-side-body .mathbox-template').length === TEMPLATE_GROUPS.reduce((n, g) => n + g.items.length, 0),
 		String(qAll('.mathbox-side-body .mathbox-template').length),
 	);
+
+	// ---- 公式模板：渲染模式与高度自适应 ----
+	{
+		const hosts = qAll<HTMLElement>('.mathbox-template .mathbox-formula');
+		check('模板：全部条目已渲染出公式', hosts.length > 0 && hosts.every((h) => h.classList.contains('is-rendered') && h.querySelector('.mjx-container')), `${hosts.filter((h) => h.classList.contains('is-rendered')).length}/${hosts.length}`);
+		const blockHosts = hosts.filter((h) => /\\begin\{(cases|align|aligned|gathered|split|matrix|pmatrix|bmatrix|vmatrix|array)\}/.test(h.dataset.tex ?? ''));
+		check(
+			'模板：多行环境以 display 模式渲染（与正文 $$…$$ 一致）',
+			blockHosts.length > 0 && blockHosts.every((h) => h.dataset.display === '1'),
+			`${blockHosts.length} 条 / display=1 的有 ${blockHosts.filter((h) => h.dataset.display === '1').length} 条`,
+		);
+		const inlineHosts = hosts.filter((h) => !/\\begin\{/.test(h.dataset.tex ?? ''));
+		check(
+			'模板：行内结构以 inline 模式渲染',
+			inlineHosts.length > 0 && inlineHosts.every((h) => h.dataset.display === '0'),
+			`${inlineHosts.length} 条`,
+		);
+		// 高度自适应：容器不留固定高度，实际高度由公式内容决定
+		const sample = hosts.find((h) => h.querySelector('.mjx-container')) ?? null;
+		const box = sample?.querySelector<HTMLElement>('.mjx-container') ?? null;
+		check(
+			'模板：展示区高度由公式撑开（未定高、未裁切）',
+			sample !== null && box !== null &&
+				sample.getBoundingClientRect().height >= box.getBoundingClientRect().height &&
+				getComputedStyle(sample).maxHeight === 'none',
+			sample && box ? `容器 ${Math.round(sample.getBoundingClientRect().height)} / 公式 ${Math.round(box.getBoundingClientRect().height)}` : '(none)',
+		);
+		check(
+			'模板：展示区已渲染态字号钉到正文默认字号',
+			sample !== null && getComputedStyle(sample).fontSize === '16px',
+			sample ? getComputedStyle(sample).fontSize : '(none)',
+		);
+	}
 	tplSelect?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 	await sleep(30);
 	check('弹出分类列表：项数 = 模板分组数', qAll('.mathbox-gselect-item').length === TEMPLATE_GROUPS.length, String(qAll('.mathbox-gselect-item').length));
@@ -349,16 +399,37 @@ async function main(): Promise<void> {
 		check('收藏条目：操作区平时不可见', actions !== null && Number.parseFloat(getComputedStyle(actions).opacity) === 0, actions ? getComputedStyle(actions).opacity : '(none)');
 		check('收藏条目：操作区底色透明（与标题一致）', actions !== null && (getComputedStyle(actions).backgroundColor === 'rgba(0, 0, 0, 0)' || getComputedStyle(actions).backgroundColor === 'transparent'), actions ? getComputedStyle(actions).backgroundColor : '(none)');
 		const favLatex = q<HTMLElement>('.mathbox-fav-latex');
+		// 收藏展示区已改公式预览：渲染前是源码占位（换行 + 不裁剪 + 可横向滚动），
+		// 渲染成功后交由宿主排版（white-space 归位 normal），高度由公式撑开
+		check(
+			'收藏条目：展示区为公式容器',
+			favLatex !== null && favLatex.classList.contains('mathbox-formula') && favLatex.dataset.tex !== undefined,
+			favLatex ? `${favLatex.className}/${favLatex.dataset.tex}` : '(none)',
+		);
 		const favLatexStyle = favLatex ? getComputedStyle(favLatex) : null;
 		check(
-			'收藏条目：源码完整展示（换行 + 不裁剪 + 可横向滚动）',
+			'收藏条目：展示区不裁剪 + 可横向滚动（高度自适应）',
 			favLatexStyle !== null &&
-				favLatexStyle.whiteSpace === 'pre-wrap' &&
-				favLatexStyle.overflowWrap === 'anywhere' &&
 				favLatexStyle.maxHeight === 'none' &&
+				favLatexStyle.overflowY === 'hidden' &&
 				favLatexStyle.overflowX === 'auto',
-			favLatexStyle ? `${favLatexStyle.whiteSpace}/${favLatexStyle.overflowWrap}/${favLatexStyle.maxHeight}/${favLatexStyle.overflowX}` : '(none)',
+			favLatexStyle ? `${favLatexStyle.maxHeight}/${favLatexStyle.overflowY}/${favLatexStyle.overflowX}` : '(none)',
 		);
+		{
+			const favHosts = qAll<HTMLElement>('.mathbox-fav-latex');
+			check(
+				'收藏条目：全部已渲染出公式',
+				favHosts.length > 0 && favHosts.every((h) => h.classList.contains('is-rendered') && h.querySelector('.mjx-container')),
+				`${favHosts.filter((h) => h.classList.contains('is-rendered')).length}/${favHosts.length}`,
+			);
+			const first = favHosts[0];
+			const inner = first?.querySelector<HTMLElement>('.mjx-container') ?? null;
+			check(
+				'收藏条目：展示区高度由公式撑开',
+				first !== undefined && inner !== null && first.getBoundingClientRect().height >= inner.getBoundingClientRect().height,
+				first && inner ? `容器 ${Math.round(first.getBoundingClientRect().height)} / 公式 ${Math.round(inner.getBoundingClientRect().height)}` : '(none)',
+			);
+		}
 		check(
 			'收藏条目：标题不截断（可换行）',
 			name !== null && getComputedStyle(name).whiteSpace === 'normal' && getComputedStyle(name).textOverflow !== 'ellipsis',
