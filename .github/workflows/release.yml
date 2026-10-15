@@ -73,7 +73,7 @@ jobs:
                   echo "version=${TAG}" >> "$GITHUB_OUTPUT"
 
             # ---------- 2. 构建 ----------
-            # npm run build = tsc 类型检查 + esbuild 生产构建 + 体积门禁（≤150 KB）
+            # npm run build = 符号表预渲染 + tsc 类型检查 + esbuild 生产构建 + 体积门禁（≤300 KB）
             - name: 构建插件
               run: npm run build
 

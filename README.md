@@ -62,8 +62,12 @@ npm run build    # tsc --noEmit + esbuild production + size gate
 npm run lint
 ```
 
-`main.js` carries a **150 KB** size gate (`scripts/check-size.mjs`), matching the design doc's P0
-budget. Current production build: **≈60 KB**. No network requests, no telemetry.
+`main.js` carries a **300 KB** size gate (`scripts/check-size.mjs`). The budget was raised from
+150 KB to 300 KB on 2026-10-15 when the symbol palette moved to **build-time prerendering**:
+`npm run prerender` (`scripts/prerender-symbols.mjs`) renders every palette entry to a MathJax
+CHTML fragment plus the character CSS, inlining both into `main.js` so buttons need no runtime
+typesetting. Current production build: **≈116 KB** before that inlining. No network requests, no
+telemetry.
 
 ### Layout
 

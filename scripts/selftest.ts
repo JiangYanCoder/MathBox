@@ -3,11 +3,14 @@
  * 运行：node scripts/selftest.mjs（先由 esbuild 打包）
  */
 
+import { readFileSync } from 'node:fs';
+
 import { expandMacros } from '../src/core/macros';
 import { buildInjectionPlan, EXTENSION_PACKAGES, defaultExtensionMap } from '../src/core/extensions';
 import { SYMBOL_GROUPS } from '../src/symbols';
 import { TEMPLATE_GROUPS } from '../src/templates';
 import { CURSOR } from '../src/core/constants';
+import { SYMBOL_CHTML, SYMBOL_CHAR_CSS, SYMBOL_RENDER_FALLBACKS } from '../src/symbols/rendered.generated';
 
 let failed = 0;
 
@@ -203,6 +206,58 @@ check(
 	`符号表/模板一键可插的宏均可展开（命中 ${uiMacros.length} 个）`,
 	unexpandable.length === 0,
 	unexpandable.join(' '),
+);
+
+// ---------------------------------------------------------------------------
+// 符号预渲染产物契约：src/symbols/rendered.generated.ts 由构建期脚本生成（不入库）。
+// 这里挡住两类回归：(1) 符号表新增条目却没渲染成功；(2) 产物膨胀突破体积预算。
+console.log('\n[8] 符号预渲染产物契约');
+const fallbackSet = new Set(SYMBOL_RENDER_FALLBACKS);
+const uniqueSymbolLatex = [...new Set(allSymbols.map((s) => s.latex))];
+const unmapped = uniqueSymbolLatex.filter((l) => !(l in SYMBOL_CHTML) && !fallbackSet.has(l));
+check(
+	`每条 latex 都有片段或已登记回退（${Object.keys(SYMBOL_CHTML).length} 片段 / ${SYMBOL_RENDER_FALLBACKS.length} 回退）`,
+	unmapped.length === 0,
+	unmapped.slice(0, 5).map((l) => JSON.stringify(l)).join(' | '),
+);
+const brokenFragments = Object.entries(SYMBOL_CHTML).filter(
+	([, html]) => !html.includes('mjx-math') || html.includes('mjx-merror'),
+);
+check(
+	'片段均为有效 CHTML（含 mjx-math、无 merror）',
+	brokenFragments.length === 0,
+	brokenFragments.slice(0, 3).map(([l]) => JSON.stringify(l)).join(' | '),
+);
+const nulFragments = Object.values(SYMBOL_CHTML).filter((html) => html.includes(CURSOR));
+check('片段不含未替换的 CURSOR（渲染前已换成占位符）', nulFragments.length === 0);
+check('字符 CSS 含 .mjx-c 字形规则', SYMBOL_CHAR_CSS.includes('.mjx-c'));
+check('字符 CSS 含 ::before content（否则按钮空白）', SYMBOL_CHAR_CSS.includes('content:'));
+const fragKb = Object.values(SYMBOL_CHTML).join('').length / 1024;
+const cssKb = SYMBOL_CHAR_CSS.length / 1024;
+const totalKb = fragKb + cssKb;
+check(
+	`片段 + 字符 CSS 在预算内（${fragKb.toFixed(1)} + ${cssKb.toFixed(1)} = ${totalKb.toFixed(1)} KB ≤ 160 KB）`,
+	totalKb <= 160,
+);
+
+console.log('\n[9] 构建链与体积门禁');
+const readRepo = (rel: string): string => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
+const pkg = JSON.parse(readRepo('package.json')) as { scripts?: Record<string, string> };
+const buildScript = pkg.scripts?.build ?? '';
+check(
+	'build 先预渲染、后 tsc（产物是类型检查对象，顺序反了会编译失败）',
+	buildScript.includes('prerender') && buildScript.indexOf('prerender') < buildScript.indexOf('tsc'),
+	buildScript,
+);
+check('体积门禁已放宽到 300 KB', /const GATE_KB = 300;/.test(readRepo('scripts/check-size.mjs')));
+const packScript = readRepo('scripts/package.mjs');
+// 用实际命令串定位（注释里也提到 tsc，按裸 'tsc' 匹配会命中文案而非调用）
+const packPrerenderAt = packScript.indexOf("['scripts/prerender-symbols.mjs']");
+const packTscAt = packScript.indexOf('typescript/bin/tsc');
+check(
+	'package 同样先预渲染、后 tsc',
+	packPrerenderAt >= 0 && packTscAt > packPrerenderAt,
+	`prerender@${packPrerenderAt} tsc@${packTscAt}`,
 );
 
 console.log(`\n结果：${failed === 0 ? '全部通过' : `${failed} 项失败`}\n`);
