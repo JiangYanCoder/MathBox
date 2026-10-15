@@ -89,6 +89,18 @@ export interface ElOptions {
 	parent?: HTMLElement;
 }
 
+/**
+ * 把**受信任**的 HTML 串解析后挂到 target（符号面板的预渲染 CHTML 片段走这条路径）
+ *
+ * 不走 innerHTML / createContextualFragment：项目 lint 两者都判为不安全。
+ * 这里的输入是构建期由 MathJax 生成的常量片段，不含任何用户输入。
+ */
+export function attachHtml(target: HTMLElement, html: string): void {
+	const parsed = new DOMParser().parseFromString(html, 'text/html');
+	// 用循环逐个搬迁而非展开：tsconfig 的 lib 不含 DOM.Iterable，NodeList 不可展开
+	while (parsed.body.firstChild) target.appendChild(parsed.body.firstChild);
+}
+
 export function makeEl<K extends keyof HTMLElementTagNameMap>(
 	tag: K,
 	options: ElOptions = {},

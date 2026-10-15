@@ -18,6 +18,7 @@ import {
 } from './core/extensions';
 import { sampleFavorites } from './favorites/store';
 import { createTranslator, resolveLang, type I18nKey, type Translator } from './i18n';
+import { ensureSymbolCss } from './symbols/rendered';
 import { MathBoxModal } from './panel/MathBoxModal';
 import { DEFAULT_SETTINGS, MathBoxSettingTab, normalizeSettings } from './settings';
 import type { FavoriteItem, InsertMode, Lang, MathBoxSettings, OpenSource, PanelRect } from './types';
@@ -75,6 +76,11 @@ export default class MathBoxPlugin extends Plugin {
 
 		// 注册工作区视图：面板可成为标签页（吸附）或独立窗口（moveLeafToPopout）
 		this.registerView(MATHBOX_VIEW_TYPE, (leaf) => new MathBoxView(leaf, this));
+
+		// 符号片段的字符/结构 CSS：纯文本注入，代价可忽略；
+		// 放在 onload 是为了面板首次打开时字形规则已就位（片段里的 mjx-c 是空元素，
+		// 没有 ::before content 规则就会整片空白）
+		ensureSymbolCss(document);
 
 		// 仅注册入口，面板与符号表全部懒初始化（onload 目标 < 10 ms）
 		registerCommands(this);

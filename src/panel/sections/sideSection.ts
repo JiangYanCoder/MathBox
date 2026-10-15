@@ -32,12 +32,13 @@ import {
 	UNGROUPED_ID,
 } from '../../favorites/store';
 import { SYMBOL_GROUPS } from '../../symbols';
+import { SYMBOL_MATH_SCOPE_CLASS, symbolFragment } from '../../symbols/rendered';
 import { TEMPLATE_GROUPS } from '../../templates';
 import type { FavoriteItem } from '../../types';
 import { GroupManagerModal } from '../groupManagerDialog';
 import { MatrixSizeModal } from '../matrixDialog';
 import { PromptModal } from '../favoriteDialog';
-import { iconButton, Icons, makeEl } from '../ui';
+import { attachHtml, iconButton, Icons, makeEl } from '../ui';
 import type { PanelContext } from './context';
 import { createGroupSelect, type GroupSelectApi } from './groupSelect';
 
@@ -50,6 +51,12 @@ type FavFilter = 'all' | 'pinned' | 'recent';
 
 export interface SideSectionApi {
 	el: HTMLElement;
+	/**
+	 * 重新测量并缩放符号片段。
+	 * 必须在本元素挂入文档之后调用——脱离文档时 offsetWidth 恒为 0，测不出自然尺寸；
+	 * 侧边栏折叠（display:none）期间同样测不出，展开后需再调一次。
+	 */
+	relayout(): void;
 	refreshFavorites(): void;
 }
 
@@ -66,6 +73,43 @@ function symbolSpan(label: string): number {
 	if (width <= 2) return 1;
 	if (width <= 5) return 2;
 	return 3;
+}
+
+// ---------------------------------------------------------------- 片段自适应
+
+/** 一个待缩放的片段：btn 提供可用格子的尺寸，inner 是片段的包裹元素 */
+interface SymbolFitEntry {
+	btn: HTMLElement;
+	inner: HTMLElement;
+}
+
+/** 低于此比例才写 transform，避免为每个按钮都生成内联样式 */
+const FIT_EPSILON = 0.995;
+
+/**
+ * 缩放超限的片段，使「\sum_{i=1}^{n}」这类高条目不至于撑破格子。
+ *
+ * 先整批读、再整批写：读写交替会触发 N 次强制同步布局（符号表 375 条）；
+ * 分开做则只有两次。字号本身由 CSS 统一给定（.mathbox-symbol-math），
+ * 这里只在装不下时收缩，绝大多数条目保持同一字号。
+ */
+function fitSymbols(entries: readonly SymbolFitEntry[]): void {
+	if (entries.length === 0) return;
+	const boxes = entries.map(({ btn, inner }) => ({
+		w: inner.offsetWidth,
+		h: inner.offsetHeight,
+		availW: btn.clientWidth,
+		availH: btn.clientHeight,
+	}));
+	entries.forEach(({ inner }, i) => {
+		const box = boxes[i];
+		if (!box) return;
+		const { w, h, availW, availH } = box;
+		// 全 0 = 还没挂上文档或整块 display:none，等 relayout() 再试
+		if (w <= 0 || h <= 0 || availW <= 0 || availH <= 0) return;
+		const k = Math.min(1, availW / w, availH / h);
+		if (k < FIT_EPSILON) inner.style.transform = `scale(${k.toFixed(3)})`;
+	});
 }
 
 // ---------------------------------------------------------------- 主构建
@@ -101,6 +145,8 @@ export function createSideSection(
 	let spyOff: (() => void) | null = null;
 	/** 程序化跳转的联动抑制截止时间（平滑滚动期间不跟随） */
 	let spyHoldUntil = 0;
+	/** 最近一次渲染出的待缩放片段（供 relayout 重算） */
+	let fitEntries: SymbolFitEntry[] = [];
 
 	// ------------------------------------------------------------------ 标签行
 
@@ -189,6 +235,8 @@ export function createSideSection(
 		searchRow.hidden = true;
 		body.replaceChildren();
 		body.scrollTop = 0;
+		// 切页即作废上一页的待缩放条目（其 DOM 已被 replaceChildren 移除）
+		fitEntries = [];
 		if (currentTab === 'symbols') renderSymbols();
 		else if (currentTab === 'templates') renderTemplates();
 		else renderFavorites();
@@ -221,6 +269,8 @@ export function createSideSection(
 		makeEl('div', { cls: 'mathbox-side-hint', text: t('side.symbolsHint'), parent: body });
 
 		const anchors: HTMLElement[] = [];
+		/** 本轮渲染出的片段（挂在文档上才测得尺寸，故统一在最后处理） */
+		const fit: SymbolFitEntry[] = [];
 		for (const group of SYMBOL_GROUPS) {
 			const head = makeEl('div', {
 				cls: 'mathbox-side-group',
@@ -243,12 +293,23 @@ export function createSideSection(
 			}
 
 			for (const item of group.items) {
+				// 渲染优先：构建期已把 latex 预渲染成 MathJax CHTML 片段，
+				// 按钮只需 innerHTML（运行时零排版）；极少数渲染失败的条目回退为文本
+				const fragment = symbolFragment(item.latex);
 				const btn = makeEl('button', {
-					cls: 'mathbox-symbol',
-					text: item.label,
+					cls: `mathbox-symbol${fragment ? ' is-math' : ''}`,
+					text: fragment ? undefined : item.label,
 					attr: { type: 'button' },
 					parent: grid,
 				});
+				// 文本回退时按钮内容即 label，渲染化后内容为空 —— 两处都留一份可检索的标记
+				btn.dataset.label = item.label;
+				btn.dataset.tex = item.latex;
+				if (fragment) {
+					const inner = makeEl('span', { cls: SYMBOL_MATH_SCOPE_CLASS, parent: btn });
+					attachHtml(inner, fragment);
+					fit.push({ btn, inner });
+				}
 				// 按钮宽度按内容自适应：内容多的项跨更多列（grid-auto-flow:dense
 				// 会把后续小按钮回填空隙，整体仍保持整齐）
 				const span = symbolSpan(item.label);
@@ -265,6 +326,9 @@ export function createSideSection(
 			onSelect: (index) => scrollToAnchor(anchors[index]),
 		});
 		bindSpy(anchors, (index) => groupSelect?.setCurrent(index));
+
+		fitEntries = fit;
+		fitSymbols(fit);
 	}
 
 	// ------------------------------------------------------------------ 公式模板页
@@ -647,6 +711,9 @@ export function createSideSection(
 
 	return {
 		el,
+		relayout(): void {
+			fitSymbols(fitEntries);
+		},
 		refreshFavorites(): void {
 			if (currentTab === 'favorites') renderBody();
 		},
