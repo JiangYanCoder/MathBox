@@ -72,7 +72,6 @@ export const TEMPLATE_GROUPS: TemplateGroup[] = [
 			t('方程组', 'Linear system', '\\begin{cases} a_{1}x + b_{1}y = c_{1} \\\\ a_{2}x + b_{2}y = c_{2} \\end{cases}'),
 			t('多行公式', 'Multi-line formula', '\\begin{align} (a+b)^{2} &= (a+b)(a+b) \\\\ &= a^{2} + ab + ba + b^{2} \\\\ &= a^{2} + 2ab + b^{2} \\end{align}'),
 			t('无编号对齐', 'Aligned without tags', '\\begin{aligned} x &= r\\cos\\theta \\\\ y &= r\\sin\\theta \\end{aligned}'),
-			t('数组', 'Array', `\\begin{array}{cl} ${CURSOR} & \\\\ & \\end{array}`),
 			t('矩阵形式', 'Matrix form', '\\mathbf{A}\\mathbf{x} = \\mathbf{b}'),
 		],
 	},
