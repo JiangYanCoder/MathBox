@@ -2,7 +2,7 @@
  * 一键打包：编译 → 组装 release/ 四文件 → 同步部署到本插件目录
  *
  * 产物（标准 Obsidian 插件结构，四文件）：
- *   release/main.js       生产构建（esbuild minify + 150 KB 门禁）
+ *   release/main.js       生产构建（esbuild minify + 300 KB 门禁）
  *   release/manifest.json 插件清单（id = obsidian-math-box）
  *   release/styles.css    样式（Obsidian 约定命名，宿主自动加载）
  *   release/data.json     默认设置种子（最小集，运行时经 normalizeSettings 补全）
@@ -24,7 +24,10 @@ const run = (cmd, args) => {
 	}
 };
 
-// 1. 编译 + 体积门禁（tsc 由 npm run build 统一驱动，此处复用）
+// 1. 编译 + 体积门禁（与 npm run build 同序，此处直接 spawn 以免依赖 npm script）
+//    预渲染必须排在 tsc 之前：src/symbols/rendered.generated.ts 是 tsc 的类型检查对象，
+//    且 src/panel 会 import 它 —— 缺失会直接编译失败。
+run(NODE, ['scripts/prerender-symbols.mjs']);
 run(NODE, ['node_modules/typescript/bin/tsc', '-noEmit', '-skipLibCheck']);
 run(NODE, ['esbuild.config.mjs', 'production']);
 run(NODE, ['scripts/check-size.mjs']);

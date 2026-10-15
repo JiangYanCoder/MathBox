@@ -5,11 +5,12 @@
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
-		"dev": "node esbuild.config.mjs",
-		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production && node scripts/check-size.mjs",
+		"dev": "npm run prerender && node esbuild.config.mjs",
+		"build": "npm run prerender && tsc -noEmit -skipLibCheck && node esbuild.config.mjs production && node scripts/check-size.mjs",
+		"prerender": "node scripts/prerender-symbols.mjs",
 		"package": "node scripts/package.mjs",
 		"check-size": "node scripts/check-size.mjs",
-		"selftest": "esbuild scripts/selftest.ts --bundle --format=esm --platform=node --log-level=warning --outfile=scripts/selftest.mjs && node scripts/selftest.mjs",
+		"selftest": "npm run prerender && esbuild scripts/selftest.ts --bundle --format=esm --platform=node --log-level=warning --outfile=scripts/selftest.mjs && node scripts/selftest.mjs",
 		"e2e": "node scripts/e2e/run.mjs",
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
 		"lint": "eslint ."
