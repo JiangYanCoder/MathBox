@@ -23,6 +23,9 @@ scripts/temp/
 # 自检脚本的打包产物（npm run selftest 生成，源码是 scripts/selftest.ts）
 scripts/selftest.mjs
 
+# 构建期预渲染的临时打包产物（esbuild 由 src/symbols/index.ts 生成，供 Node 侧脚本读取）
+scripts/.tmp-symbols.mjs
+
 # 编辑器与系统垃圾
 .vscode/
 .idea/
