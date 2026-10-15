@@ -3,6 +3,14 @@
  *
  * `latex` 中的 `CURSOR` 表示插入后光标停靠的位置。
  * 模板点选后的行为是「替换编辑区内容」（可 Ctrl+Z 撤销），而非直接写正文。
+ *
+ * ## 与「快捷工具」面板的分工（2026-10-15 去重）
+ * 侧边栏「快捷工具」页收录的是**单结构符号**（分数 / 根式 / 括号 / 上下标 / 积分号…），
+ * 本表只收录**快捷工具里没有的整式**。凡 `latex` 与 `SYMBOL_GROUPS` 中任一条目
+ * 完全相同的模板一律删除（本次清理 16 条：分数、大型分数、二次根式、n 次根式、
+ * 一阶导数、绝对值、范数、2×2 矩阵、方括号矩阵、不定积分、定积分、二重积分、
+ * 环路积分、极限、单侧极限、趋于无穷）。
+ * 新增模板前请先确认未与符号表重复 —— `scripts/selftest.ts` [10] 节有硬校验。
  */
 
 import { CURSOR } from '../core/constants';
@@ -22,11 +30,9 @@ export const TEMPLATE_GROUPS: TemplateGroup[] = [
 	{
 		id: 'fraction',
 		name: b('分数与根式', 'Fractions & radicals'),
+		// 注：纯结构型条目（分数 / 大型分数 / 二次根式 / n 次根式）已由侧边栏
+		// 「快捷工具」面板直接提供，此处不再重复收录，只留快捷工具中没有的整式。
 		items: [
-			t('分数', 'Fraction', `\\frac{${CURSOR}}{}`),
-			t('大型分数', 'Display fraction', `\\dfrac{${CURSOR}}{}`),
-			t('二次根式', 'Square root', `\\sqrt{${CURSOR}}`),
-			t('n 次根式', 'nth root', `\\sqrt[n]{${CURSOR}}`),
 			t('连分数', 'Continued fraction', 'x = a_{0} + \\cfrac{1}{a_{1} + \\cfrac{1}{a_{2} + \\cfrac{1}{a_{3}}}}'),
 			t('部分分式', 'Partial fractions', '\\frac{1}{n(n+1)} = \\frac{1}{n} - \\frac{1}{n+1}'),
 			t('分母有理化', 'Rationalized denominator', '\\frac{1}{\\sqrt{a}} = \\frac{\\sqrt{a}}{a}'),
@@ -41,10 +47,7 @@ export const TEMPLATE_GROUPS: TemplateGroup[] = [
 			t('指数幂', 'Exponential power', 'e^{-x^{2}}'),
 			t('向量', 'Vector', '\\vec{v} = (v_{1}, v_{2}, v_{3})'),
 			t('单位向量', 'Unit vector', `\\hat{e}_{${CURSOR}}`),
-			t('一阶导数', 'First derivative', '\\frac{\\mathrm{d}y}{\\mathrm{d}x}'),
 			t('二阶导数', 'Second derivative', '\\frac{\\mathrm{d}^{2}y}{\\mathrm{d}x^{2}}'),
-			t('绝对值', 'Absolute value', `\\left| ${CURSOR} \\right|`),
-			t('范数', 'Norm', `\\left\\lVert ${CURSOR} \\right\\rVert`),
 			t('取整', 'Floor & ceiling', '\\left\\lfloor x \\right\\rfloor \\leq x \\leq \\left\\lceil x \\right\\rceil'),
 		],
 	},
@@ -52,8 +55,6 @@ export const TEMPLATE_GROUPS: TemplateGroup[] = [
 		id: 'matrix',
 		name: b('矩阵与行列式', 'Matrices & determinants'),
 		items: [
-			t('2×2 矩阵', '2x2 matrix', '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}'),
-			t('方括号矩阵', 'Bracket matrix', `\\begin{bmatrix} ${CURSOR} \\end{bmatrix}`),
 			t('行列式', 'Determinant', '\\begin{vmatrix} a & b \\\\ c & d \\end{vmatrix} = ad - bc'),
 			t('对角矩阵', 'Diagonal matrix', '\\begin{pmatrix} \\lambda_{1} & & 0 \\\\ & \\ddots & \\\\ 0 & & \\lambda_{n} \\end{pmatrix}'),
 			t('增广矩阵', 'Augmented matrix', '\\left( \\begin{array}{cc|c} a_{11} & a_{12} & b_{1} \\\\ a_{21} & a_{22} & b_{2} \\end{array} \\right)'),
@@ -79,11 +80,7 @@ export const TEMPLATE_GROUPS: TemplateGroup[] = [
 		id: 'calculus',
 		name: b('微积分', 'Calculus'),
 		items: [
-			t('不定积分', 'Indefinite integral', '\\int f(x)\\,\\mathrm{d}x'),
-			t('定积分', 'Definite integral', '\\int_{a}^{b} f(x)\\,\\mathrm{d}x'),
-			t('二重积分', 'Double integral', '\\iint_{D} f(x,y)\\,\\mathrm{d}x\\,\\mathrm{d}y'),
 			t('三重积分', 'Triple integral', '\\iiint_{\\Omega} f(x,y,z)\\,\\mathrm{d}V'),
-			t('环路积分', 'Contour integral', '\\oint_{C} \\vec{F} \\cdot \\mathrm{d}\\vec{l}'),
 			t('偏导数', 'Partial derivative', '\\frac{\\partial f}{\\partial x}'),
 			t('混合偏导', 'Mixed partial', '\\frac{\\partial^{2} f}{\\partial x \\partial y}'),
 			t('全微分', 'Total differential', '\\mathrm{d}f = \\frac{\\partial f}{\\partial x}\\mathrm{d}x + \\frac{\\partial f}{\\partial y}\\mathrm{d}y'),
@@ -97,9 +94,6 @@ export const TEMPLATE_GROUPS: TemplateGroup[] = [
 		id: 'series',
 		name: b('极限与级数', 'Limits & series'),
 		items: [
-			t('极限', 'Limit', '\\lim_{x \\to 0}'),
-			t('单侧极限', 'One-sided limit', '\\lim_{x \\to 0^{+}}'),
-			t('趋于无穷', 'Limit at infinity', '\\lim_{n \\to \\infty}'),
 			t('重要极限', 'Notable limit', '\\lim_{n \\to \\infty} \\left( 1 + \\frac{1}{n} \\right)^{n} = e'),
 			t('求和', 'Summation', '\\sum_{n=1}^{\\infty} a_{n}'),
 			t('连乘', 'Product', '\\prod_{n=1}^{\\infty} a_{n}'),

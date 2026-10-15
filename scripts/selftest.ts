@@ -6,6 +6,7 @@
 import { readFileSync } from 'node:fs';
 
 import { expandMacros } from '../src/core/macros';
+import { BLOCK_ENVS, isBlockFormula, previewSource } from '../src/core/formula';
 import { buildInjectionPlan, EXTENSION_PACKAGES, defaultExtensionMap } from '../src/core/extensions';
 import { SYMBOL_GROUPS } from '../src/symbols';
 import { TEMPLATE_GROUPS } from '../src/templates';
@@ -259,6 +260,67 @@ check(
 	packPrerenderAt >= 0 && packTscAt > packPrerenderAt,
 	`prerender@${packPrerenderAt} tsc@${packTscAt}`,
 );
+
+// ---------------------------------------------------------------------------
+// 公式模板 / 收藏夹的「渲染化」契约（2026-10-15）
+//  1) 模板不得收录快捷工具里已有的条目（用户要求去重，快捷工具面板不动）
+//  2) 块级判定与光标占位替换必须正确（错了会渲染崩溃或观感错乱）
+console.log('\n[10] 公式模板去重与预览渲染契约');
+const symbolLatexSet = new Set(allSymbols.map((s) => s.latex));
+const dupWithSymbols = TEMPLATE_GROUPS.flatMap((g) =>
+	g.items.filter((item) => symbolLatexSet.has(item.latex)).map((item) => `${g.id}/${item.name.zh}`),
+);
+check(
+	`模板不与快捷工具重复（当前 ${TEMPLATE_GROUPS.reduce((n, g) => n + g.items.length, 0)} 条）`,
+	dupWithSymbols.length === 0,
+	dupWithSymbols.join(' | '),
+);
+
+// 块级判定：多行环境走 display，行内结构走 inline
+const blockCases: Array<[string, boolean]> = [
+	['\\begin{cases} x \\\\ y \\end{cases}', true],
+	['\\begin{align} a &= b \\end{align}', true],
+	['\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}', true],
+	['\\begin{aligned} x &= y \\end{aligned}', true],
+	['\\begin{array}{cl} a & b \\end{array}', true],
+	['E = mc^{2}', false],
+	['\\frac{\\partial f}{\\partial x}', false],
+	['\\int_{a}^{b} f(x)\\,\\mathrm{d}x', false],
+	['\\sum_{n=1}^{\\infty} a_{n}', false],
+];
+const wrongBlock = blockCases.filter(([tex, want]) => isBlockFormula(tex) !== want);
+check(
+	'块级判定：多行环境 display、行内结构 inline',
+	wrongBlock.length === 0,
+	wrongBlock.map(([tex, want]) => `${tex} 期望 ${want}`).join(' | '),
+);
+check('块级环境表非空且含常用环境', BLOCK_ENVS.size > 20 && BLOCK_ENVS.has('cases') && BLOCK_ENVS.has('matrix'));
+
+// 光标占位符必须替换为可见占位：NUL 直送 MathJax 会让 \frac 取参崩溃
+const withCursor = `\\frac{${CURSOR}}{}`;
+const previewed = previewSource(withCursor);
+check('预览源码已替换 CURSOR', !previewed.includes(CURSOR) && previewed.includes('\\square'), previewed);
+check('预览源码不误伤普通 LaTeX', previewSource('\\frac{a}{b}') === '\\frac{a}{b}');
+const tmplWithCursor = TEMPLATE_GROUPS.flatMap((g) => g.items).filter((item) => item.latex.includes(CURSOR));
+check(
+	`含 CURSOR 的模板（${tmplWithCursor.length} 条）预览源码均不含 NUL`,
+	tmplWithCursor.every((item) => !previewSource(item.latex).includes(CURSOR)),
+);
+
+// 渲染容器样式：不做定高 / 不裁剪，高度由公式实际高度撑开
+const cssText = readRepo('styles.css');
+const formulaBlock = /\.mathbox-formula\s*\{[^}]*\}/.exec(cssText)?.[0] ?? '';
+check('公式容器未设固定高度（高度自适应）', !/height\s*:/.test(formulaBlock), formulaBlock.slice(0, 120));
+check('公式容器允许横向滚动（超宽公式不裁切）', /overflow-x:\s*auto/.test(formulaBlock));
+check('已渲染态把字号钉到正文默认字号（与笔记公式视觉一致）', /\.mathbox-formula\.is-rendered\s*\{[^}]*font-size:\s*var\(--font-text-size/.test(cssText));
+check('已渲染态归零宿主块级容器外边距', /\.mathbox-formula\.is-rendered\s*>\s*mjx-container\s*\{[^}]*margin:\s*0\s*!important/.test(cssText));
+
+// 两处接入点：模板 buildTemplate 与收藏 buildFavoriteRow 都挂公式容器
+const sideSrc = readRepo('src/panel/sections/sideSection.ts');
+check('模板条目挂公式容器', /mountFormula\(btn,\s*item\.latex/.test(sideSrc));
+check('收藏条目挂公式容器', /mountFormula\(main,\s*item\.latex/.test(sideSrc));
+check('模板与收藏列表重建后均触发渲染', (sideSrc.match(/renderFormulaIn\(sections\)/g) ?? []).length === 2);
+check('快捷工具页未被改动（仍走文本符号按钮）', /renderSymbols/.test(sideSrc) && !/mountFormula\(.*symbol/i.test(sideSrc));
 
 console.log(`\n结果：${failed === 0 ? '全部通过' : `${failed} 项失败`}\n`);
 process.exit(failed === 0 ? 0 : 1);

@@ -34,6 +34,7 @@ import {
 import { SYMBOL_GROUPS } from '../../symbols';
 import { TEMPLATE_GROUPS } from '../../templates';
 import type { FavoriteItem } from '../../types';
+import { mountFormula, renderFormulaIn } from '../formulaView';
 import { GroupManagerModal } from '../groupManagerDialog';
 import { MatrixSizeModal } from '../matrixDialog';
 import { PromptModal } from '../favoriteDialog';
@@ -309,11 +310,8 @@ export function createSideSection(
 			if (item.tag) {
 				makeEl('span', { cls: 'mathbox-tag', text: item.tag[ctx.lang], parent: nameRow });
 			}
-			makeEl('div', {
-				cls: 'mathbox-template-latex',
-				text: item.latex.replace(CURSOR, ''),
-				parent: btn,
-			});
+			// 公式预览：先写 LaTeX 源码占位，随后由 renderFormulaIn 批量换成渲染结果
+			mountFormula(btn, item.latex, 'mathbox-template-latex');
 			btn.addEventListener('click', () => ctx.replaceSourceWith(item.latex));
 			// div 形态需自行补键盘可达性（Enter / 空格等同点击）
 			btn.addEventListener('keydown', (ev: KeyboardEvent) => {
@@ -351,6 +349,8 @@ export function createSideSection(
 			}
 			// 锚点数量可能变化（搜索过滤），重算一次高亮
 			spySync();
+			// 列表重建完毕 → 触发本批次的公式渲染（异步，不阻塞 paint）
+			void renderFormulaIn(sections);
 		};
 
 		/** 滚动联动：按当前可见分组标题的位置判定所属分组 */
@@ -409,7 +409,8 @@ export function createSideSection(
 			parent: row,
 		});
 		makeEl('div', { cls: 'mathbox-fav-name', text: item.name, parent: main });
-		makeEl('div', { cls: 'mathbox-fav-latex', text: item.latex, parent: main });
+		// 与模板同款：先写 LaTeX 源码占位，随后由 renderFormulaIn 换成渲染结果
+		mountFormula(main, item.latex, 'mathbox-fav-latex');
 		main.addEventListener('click', () => {
 			ctx.insertIntoSource(item.latex);
 			ctx.mutateFavorites((list) => touchFavorite(list, item.id));
@@ -613,6 +614,8 @@ export function createSideSection(
 
 			// 搜索/过滤会改变可滚动高度，锚点重建后同步一次高亮
 			spySync();
+			// 列表重建完毕 → 触发本批次的公式渲染（异步，不阻塞 paint）
+			void renderFormulaIn(sections);
 		};
 
 		// ---- 分组选择按钮：点选跳转到该分组 ----
