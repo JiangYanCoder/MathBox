@@ -923,6 +923,21 @@ body.mathbox-resizing {
 	margin: 0 !important;
 }
 
+/* 分式与矩阵的渲染结果纵向更高（分数上下两行、矩阵多行 + 括号），
+ * 按钮给足高度，避免内容贴边或被挤扁（2026-10-18 王先生反馈）。
+ * 网格行高由 `grid-auto-rows: minmax(30px, auto)` 自适应，这里只抬下限。 */
+.mathbox-symbol-grid[data-group="fraction"] .mathbox-symbol {
+	min-height: 54px;
+	padding-top: 7px;
+	padding-bottom: 7px;
+}
+
+.mathbox-symbol-grid[data-group="matrix"] .mathbox-symbol {
+	min-height: 74px;
+	padding-top: 9px;
+	padding-bottom: 9px;
+}
+
 /* ===== 悬停提示浮层（第一行 LaTeX 源码、第二行中/英备注） ===== */
 .mathbox-tip {
 	position: fixed;
