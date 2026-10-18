@@ -1,7 +1,7 @@
 {
 	"id": "obsidian-math-box",
 	"name": "MathBox",
-	"version": "1.0.0",
+	"version": "3.3.0",
 	"minAppVersion": "1.5.0",
 	"description": "A visual LaTeX formula editor: live preview, symbol palette, templates, favorites, and multi-format export.",
 	"author": "JiangYanCoder",

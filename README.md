@@ -1,10 +1,13 @@
 # MathBox
 
-A visual LaTeX formula editor for Obsidian: live preview on top, LaTeX source below, an option bar in
-between, and a collapsible side pane holding symbols, templates and favorites.
+**v3.3.0** — A visual LaTeX formula editor for Obsidian: live preview on top, LaTeX source below, an
+option bar in between, and a collapsible side pane holding symbols, templates and favorites.
 
 一个显式的**上下分栏**公式编辑器：上方实时渲染、下方编辑 LaTeX 源码，中间选项栏控制字号 / 字体 /
 颜色并提供行内、行间两种插入方式；右侧可展开侧边栏承载常用符号、公式模板与收藏夹。
+
+侧边栏三页（快捷工具 / 公式模板 / 收藏夹）中的公式与符号**均由宿主 MathJax 渲染**，字体与笔记
+正文里的公式完全一致（Computer Modern / TeX）。
 
 ## Features / 功能
 
@@ -14,8 +17,11 @@ between, and a collapsible side pane holding symbols, templates and favorites.
 | Live preview | rendered through the host MathJax (`renderMath`), 200 ms debounce, errors reported without blanking the last good render |
 | Option bar | font size / font family / color / environment on the left; **Insert inline** · **Insert display** on the right |
 | Source pane | monospace editor with copy / clear; pasting strips `$`, `$$`, `\(\)`, `\[\]` delimiters automatically |
-| Side pane | symbol palette (8 groups), formula templates (9 groups), favorites with search / pin / rename / delete |
-| Favorites | stored in the plugin's `data.json`, JSON import & export |
+| Symbol palette | **13 groups / 370 items**, every button rendered as a real formula (Computer Modern / TeX); lazy-rendered with a per-formula cache so the pane opens instantly |
+| Formula templates | **9 groups / 66 items**, each entry previewed as a rendered formula instead of raw LaTeX |
+| Favorites | search / pin / rename / regroup / delete; stored in the plugin's `data.json`, JSON import & export |
+| Hover hints | two-line tooltip: line 1 the LaTeX source, line 2 a Chinese / English description (all 370 symbols covered) |
+| Matrix entries | buttons preview a 2×2 case (`a₁₁ … a₂₂`) and **insert a 2×2 skeleton** with `&` / `\\` already in place; arbitrary sizes via the *custom matrix* dialog |
 | Export | LaTeX, MathML, SVG, PNG (see *Rendering notes* below) |
 | i18n | 简体中文 / English, `auto` follows the app language |
 | Theme | every color comes from Obsidian CSS variables; icons are Lucide via `setIcon` |
@@ -31,6 +37,9 @@ between, and a collapsible side pane holding symbols, templates and favorites.
 If a selection that looks like LaTeX (starts with `\`, or is wrapped in `$…$`) is present when the
 panel is opened from the menu or the hotkey, it is pre-filled into the source pane.
 
+Side-pane symbol order: **Common → Greek → Relations → Arrows → Sets & Logic → Fractions →
+Radicals → Limits → Trigonometry → Integrals → Large operators → Brackets → Arrays & matrices.**
+
 ## Settings / 设置
 
 - **Interface language** — follow app language / 简体中文 / English
@@ -45,6 +54,10 @@ Obsidian bundles only `lib/mathjax/tex-chtml-full.js` — TeX input with ~30 ext
 `mathtools`, `physics`, `mhchem`, …) plus the **CHTML output**. There is **no SVG output component**
 and no separate MML output bundle. Consequences:
 
+- **Side pane** — every symbol / template / favorite preview calls the host `renderMath`, i.e. the
+  exact same code path that renders formulas in your notes. Font family, size, line height and
+  baseline are therefore identical by construction, not by imitation. Multi-line environments
+  (`cases`, `align`, `matrix`, `array`, …) switch to display mode automatically, matching `$$…$$`.
 - **LaTeX** — copied verbatim.
 - **MathML** — taken from the `mjx-assistive-mml > math` subtree that CHTML output already produces,
   with fallbacks to `MathJax.tex2mml` and the internal MathML tree. No font dependency.
@@ -57,33 +70,61 @@ and no separate MML output bundle. Consequences:
 
 ```bash
 npm install
-npm run dev      # esbuild watch
-npm run build    # tsc --noEmit + esbuild production + size gate
+npm run dev        # esbuild watch
+npm run build      # prerender → tsc --noEmit → esbuild production → size gate
 npm run lint
+npm run selftest   # pure logic + data contracts (no browser)
+npm run e2e        # headless Chrome, 317 checks
+npm run package    # build → release/{main.js,manifest.json,styles.css,data.json}
 ```
 
-`main.js` carries a **300 KB** size gate (`scripts/check-size.mjs`). The budget was raised from
-150 KB to 300 KB on 2026-10-15 when the symbol palette moved to **build-time prerendering**:
-`npm run prerender` (`scripts/prerender-symbols.mjs`) renders every palette entry to a MathJax
-CHTML fragment plus the character CSS, inlining both into `main.js` so buttons need no runtime
-typesetting. Current production build: **≈116 KB** before that inlining. No network requests, no
-telemetry.
+`main.js` carries a **300 KB** size gate (`scripts/check-size.mjs`), currently at **≈145 KB**.
+
+> The budget was raised from 150 KB to 300 KB on 2026-10-15. Note that the symbol palette is **not**
+> inlined: it is typeset at runtime by the host MathJax and cached, which is why the bundle stays
+> small. `npm run prerender` still runs as part of `build` (its output feeds `selftest [8]`), but has
+> no runtime consumer since v3.3 switched to runtime rendering.
 
 ### Layout
 
 ```
 src/
-  main.ts              plugin lifecycle, settings persistence, panel singleton
-  settings.ts          defaults, normalization/migration, settings tab
-  types.ts             shared types
-  core/                pure logic (never imports "obsidian"): debounce, wrap, macros, latex, insert
-  i18n/                zh / en tables (never imports "obsidian")
-  symbols/             inlined symbol palette
-  templates/           inlined formula templates
-  favorites/           favorites CRUD (pure), persisted by the settings layer
-  exporter/            LaTeX / MathML / SVG / PNG + clipboard & download helpers
-  panel/               Modal workspace: render pane, option bar, source pane, side pane
-  commands/            ribbon, editor-menu and command registration
+  main.ts               plugin lifecycle, settings persistence, panel singleton
+  settings.ts           defaults, normalization/migration, settings tab
+  types.ts              shared types (SymbolItem carries displayLatex / remark / span)
+  core/
+    formula.ts          pure: block-environment detection, CURSOR → \square
+    …                   debounce, wrap, macros, latex, insert
+  i18n/                 zh / en tables (never imports "obsidian")
+  symbols/              symbol palette (13 groups, 370 items; remarks attached inline)
+  templates/            formula templates (9 groups, 66 items)
+  favorites/            favorites CRUD (pure), persisted by the settings layer
+  exporter/             LaTeX / MathML / SVG / PNG + clipboard & download helpers
+  panel/
+    formulaView.ts      formula preview: placeholder → lazy render → cache
+    floatingTooltip.ts  two-line hover tooltip (singleton)
+    …                   Modal workspace: render pane, option bar, source pane, side pane
+  commands/             ribbon, editor-menu and command registration
 ```
+
+### Testing
+
+- `npm run selftest` — validates group ordering, template/symbol de-duplication, `displayLatex`
+  contracts, matrix skeleton separators, remark coverage (all 370), span bounds, build-chain order.
+- `npm run e2e` — real DOM in headless Chrome: rendered containers, first-screen batch, measured
+  button sizes, tooltip content, group order.
+
+> Headless note: Edge 155's `--headless=new --dump-dom` no longer writes to stdout (empty output,
+> exit code 0). `scripts/e2e/run.mjs` therefore prefers a user-level Chrome install.
+
+## Version history
+
+| Version | Highlights |
+| --- | --- |
+| 3.3.0 | Side pane fully rendered through host MathJax (symbols, templates, favorites); two-line hover hints; matrix previews + 2×2 insertion skeletons; group re-ordering; 370 bilingual remarks |
+| 3.2.x | Favorites groups, adaptive option bar, panel/tab/popout entry points |
+| 3.0.0 | Renamed to MathBox; three-column layout with collapsible side pane; multi-format export |
+| 2.0.0 | Right-click invoked three-pane editor (render / source / templates) |
+| 1.0.0 | Inline palette on inserting a formula block |
 
 This plugin follows the official Obsidian sample plugin structure (TypeScript + esbuild).
