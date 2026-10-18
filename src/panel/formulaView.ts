@@ -1,9 +1,9 @@
 /**
- * 公式预览渲染 —— 「公式模板」与「收藏夹」两处共用
+ * 公式预览渲染 —— 快捷工具按钮 / 公式模板 / 收藏夹 三处共用
  *
  * ## 为什么渲染
- * 这两处过去直接把 LaTeX 源码当文本打印（等宽字体 + 灰字），用户看不出公式长什么样。
- * 本模块把它们换成**渲染后的公式**，源码仍在 `title` 提示里保留。
+ * 这三处过去直接把 LaTeX 源码或 Unicode 字符当文本打印，用户看不出公式长什么样。
+ * 本模块把它们换成**渲染后的公式**（Computer Modern / TeX 字体），源码仍在提示里保留。
  *
  * ## 为什么走宿主 renderMath，而不是构建期预渲染片段
  * 需求是「字体须与 Obsidian 默认公式渲染一致（Computer Modern / TeX），
@@ -14,10 +14,10 @@
  * 构建期改用 mathjax-full 预渲染会引入字体族命名差异（mathjax-full 用 `MJXZERO / MJXTEX-*`，
  * 宿主用 `MJX-TEX-*`），该路线在符号面板上已验证会跑偏并已回退，故此处不采用。
  *
- * ## 时序
- * 宿主**懒加载** MathJax，故渲染前必须先 `await ensureMathJax()`。
- * 与此同时，容器先写入 LaTeX 源码作为占位文本 —— 面板秒开，
- * 且 MathJax 不可用时仍有可读内容（不会留下空白块）。
+ * ## 两种渲染时序
+ *  · `renderFormulaIn`  —— 模板 / 收藏夹：条目数十条，列表重建后一次性全量渲染；
+ *  · `renderSymbolsLazy` —— 快捷工具：375 个按钮，**首屏只渲染前 N 条，其余滚动到视口再渲染**，
+ *    并对渲染结果做 latex 级缓存（同一条公式只排版一次，后续克隆节点复用）。
  *
  * ## 块级判定
  * 多行环境（align / cases / matrix / array …）在 inline 模式下会被压成一行、观感错乱，
@@ -38,6 +38,13 @@ const RENDERED_CLASS = 'is-rendered';
 
 /** 渲染失败 / 公式非法时追加的类名（退回纯文本展示） */
 const FAILED_CLASS = 'is-failed';
+
+/**
+ * 快捷工具首屏立即渲染的按钮数，其余交给 IntersectionObserver。
+ * 侧边栏一屏约可见 120–180 个按钮，取 96 可覆盖主要可见区，
+ * 同时把首开排版成本压在 ~200 ms 以内（实测单条约 1–2 ms）。
+ */
+const LAZY_IMMEDIATE = 96;
 
 /**
  * 建立公式预览容器：先写入源码占位文本，挂上 `data-tex` / `data-display`，
@@ -102,4 +109,127 @@ export async function renderFormulaIn(root: HTMLElement): Promise<void> {
 
 	// 统一收尾一次（CHTML 的度量 / 排版收尾），不必逐条 await
 	if (rendered > 0) await finishRenderMath();
+}
+
+// ------------------------------------------------------------------ 快捷工具：懒渲染
+
+/** 已渲染结果缓存：`I:` / `D:` + latex → 节点。同一条公式只排版一次，后续 cloneNode 复用 */
+const renderCache = new Map<string, HTMLElement>();
+
+/** 懒渲染观察器（全局单例，换页重建前 disconnect） */
+let lazyObserver: IntersectionObserver | null = null;
+
+/**
+ * 建立符号按钮的公式容器。
+ *
+ * 与 `mountFormula` 的差别：内容取 `source`（**展示用** latex，可能带 a/b、a₁₁ 案例），
+ * 占位文本用 `label`（Unicode），并额外挂 `data-label` ——
+ * CHTML 渲染后 `textContent` 为空（字形由 CSS `::before` 提供），断言与降级都靠它。
+ */
+export function mountSymbolMath(parent: HTMLElement, source: string, label: string): HTMLElement {
+	return makeEl('div', {
+		cls: `${FORMULA_CLASS} mathbox-symbol-math`,
+		text: label,
+		attr: {
+			'data-tex': source,
+			'data-display': isBlockFormula(source) ? '1' : '0',
+			'data-label': label,
+		},
+		parent,
+	});
+}
+
+function cacheKey(source: string, display: boolean): string {
+	return `${display ? 'D' : 'I'}:${source}`;
+}
+
+/**
+ * 渲染单个公式容器（同步，要求 MathJax 已就绪）。
+ * 命中缓存时只克隆节点 —— 这是「减小运行开销」的主要手段。
+ */
+function paintOne(host: HTMLElement): boolean {
+	const source = host.dataset.tex ?? '';
+	if (!source) return false;
+	const display = host.dataset.display === '1';
+	const key = cacheKey(source, display);
+	let math = renderCache.get(key);
+	if (!math) {
+		try {
+			math = renderMath(source, display);
+		} catch {
+			host.classList.add(FAILED_CLASS);
+			return false;
+		}
+		if (math.querySelector('mjx-merror')) {
+			host.classList.add(FAILED_CLASS);
+			return false;
+		}
+		renderCache.set(key, math);
+	}
+	host.replaceChildren(math.cloneNode(true));
+	host.classList.add(RENDERED_CLASS);
+	return true;
+}
+
+/**
+ * 快捷工具按钮的**懒渲染**：
+ *  1. 首屏同步渲染前 `immediate` 条（默认 48，约 100 ms 内完成）；
+ *  2. 其余交给 IntersectionObserver，滚动到视口前 120 px 才排版；
+ *  3. 无 IntersectionObserver 的环境退化为一次性全量渲染（保证功能不缺失）。
+ *
+ * 这样面板首开不再为 375 个按钮一次性付排版成本；二次打开几乎零开销（缓存全命中）。
+ */
+export async function renderSymbolsLazy(
+	root: HTMLElement,
+	immediate = LAZY_IMMEDIATE,
+): Promise<void> {
+	const hosts: HTMLElement[] = [];
+	const nodes = root.querySelectorAll<HTMLElement>(`.${FORMULA_CLASS}:not(.${RENDERED_CLASS})`);
+	for (let i = 0; i < nodes.length; i += 1) hosts.push(nodes.item(i));
+	if (hosts.length === 0) return;
+
+	// 宿主懒加载 MathJax：未就绪时 tex2chtml 尚不存在，会抛 "is not a function"
+	await ensureMathJax();
+	// 期间面板已重建（切页 / 搜索），旧节点已脱离文档 → 放弃本批
+	if (!root.isConnected) return;
+
+	let painted = 0;
+	for (let i = 0; i < hosts.length && i < immediate; i += 1) {
+		const host = hosts[i];
+		if (host && paintOne(host)) painted += 1;
+	}
+	if (painted > 0) await finishRenderMath();
+
+	const rest = hosts.slice(immediate);
+	if (rest.length === 0) return;
+
+	if (typeof IntersectionObserver !== 'function') {
+		for (const host of rest) paintOne(host);
+		await finishRenderMath();
+		return;
+	}
+
+	lazyObserver?.disconnect();
+	const scrollRoot = root.closest('.mathbox-side-body');
+	lazyObserver = new IntersectionObserver(
+		(entries) => {
+			let changed = 0;
+			for (const entry of entries) {
+				if (!entry.isIntersecting) continue;
+				const host = entry.target;
+				lazyObserver?.unobserve(host);
+				if (host instanceof HTMLElement && paintOne(host)) changed += 1;
+			}
+			if (changed > 0) void finishRenderMath();
+		},
+		{ root: scrollRoot instanceof HTMLElement ? scrollRoot : null, rootMargin: '120px 0px' },
+	);
+	for (const host of rest) lazyObserver.observe(host);
+}
+
+/** 清空渲染缓存与观察器（面板销毁时调用，避免持有已脱离文档的节点） */
+export function disposeFormulaCache(): void {
+	lazyObserver?.disconnect();
+	lazyObserver = null;
+	renderCache.clear();
 }

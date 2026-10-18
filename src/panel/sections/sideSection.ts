@@ -34,7 +34,9 @@ import {
 import { SYMBOL_GROUPS } from '../../symbols';
 import { TEMPLATE_GROUPS } from '../../templates';
 import type { FavoriteItem } from '../../types';
-import { mountFormula, renderFormulaIn } from '../formulaView';
+import { isBlockFormula, previewSource } from '../../core/formula';
+import { FloatingTooltip } from '../floatingTooltip';
+import { mountFormula, mountSymbolMath, renderFormulaIn, renderSymbolsLazy } from '../formulaView';
 import { GroupManagerModal } from '../groupManagerDialog';
 import { MatrixSizeModal } from '../matrixDialog';
 import { PromptModal } from '../favoriteDialog';
@@ -58,10 +60,13 @@ export interface SideSectionApi {
 const WIDE_CHAR = /[\u1100-\u115F\u2E80-\u303E\u3041-\u33FF\u3400-\u4DBF\u4E00-\u9FFF\uA000-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE6F\uFF00-\uFF60\uFFE0-\uFFE6]/;
 
 /**
- * 符号按钮应占的列数：按显示宽度分档（1 / 2 / 3 列），
- * 使「\lim」「\sum_{i=1}^{n}」这类长条目不再被挤成等宽小格。
+ * 符号按钮应占的列数（网格为 `repeat(auto-fill, minmax(32px, 1fr))`）：
+ *  · 展示内容是块级公式（矩阵 / 分段 / 对齐等多行环境）→ 跨 **4 列**，
+ *    容得下 2×2 案例与分段函数；
+ *  · 其余按占位文本的显示宽度分档（1 / 2 / 3 列）。
  */
-function symbolSpan(label: string): number {
+function symbolSpan(label: string, displaySource: string): number {
+	if (isBlockFormula(displaySource)) return 4;
 	let width = 0;
 	for (const ch of label) width += WIDE_CHAR.test(ch) ? 2 : 1;
 	if (width <= 2) return 1;
@@ -220,6 +225,7 @@ export function createSideSection(
 		chipBar.hidden = false;
 
 		makeEl('div', { cls: 'mathbox-side-hint', text: t('side.symbolsHint'), parent: body });
+		const tip = FloatingTooltip.shared();
 
 		const anchors: HTMLElement[] = [];
 		for (const group of SYMBOL_GROUPS) {
@@ -246,15 +252,22 @@ export function createSideSection(
 			for (const item of group.items) {
 				const btn = makeEl('button', {
 					cls: 'mathbox-symbol',
-					text: item.label,
 					attr: { type: 'button' },
 					parent: grid,
 				});
-				// 按钮宽度按内容自适应：内容多的项跨更多列（grid-auto-flow:dense
-				// 会把后续小按钮回填空隙，整体仍保持整齐）
-				const span = symbolSpan(item.label);
+				// 展示用源码：优先 `displayLatex`（分数显示 a/b、矩阵显示 a₁₁… 案例），
+				// 缺省时取插入用 latex 并把 CURSOR 换成占位方块
+				const display = item.displayLatex ?? previewSource(item.latex);
+				const span = symbolSpan(item.label, display);
 				if (span > 1) btn.style.gridColumn = `span ${span}`;
-				btn.title = item.latex;
+				// 按钮内容由宿主 renderMath 渲染（Computer Modern / TeX 字体），
+				// 先进视口的先渲染，其余滚动到视口再渲染，见 renderSymbolsLazy
+				mountSymbolMath(btn, display, item.label);
+				// 悬停浮层：第一行 LaTeX 源码，第二行中/英备注（无备注则只显示一行）
+				tip.attach(btn, () => ({
+					latex: item.latex.split(CURSOR).join(''),
+					remark: item.remark?.[ctx.lang],
+				}));
 				btn.addEventListener('click', () => ctx.insertIntoSource(item.latex));
 			}
 		}
@@ -266,6 +279,9 @@ export function createSideSection(
 			onSelect: (index) => scrollToAnchor(anchors[index]),
 		});
 		bindSpy(anchors, (index) => groupSelect?.setCurrent(index));
+
+		// 首屏渲染 + 其余懒渲染（不阻塞面板打开）
+		void renderSymbolsLazy(body);
 	}
 
 	// ------------------------------------------------------------------ 公式模板页

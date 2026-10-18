@@ -35,16 +35,18 @@ function braceBalance(tex: string): number {
 	return n;
 }
 
-console.log('\n[1] 符号分组（需求指定的前十组顺序）');
+console.log('\n[1] 符号分组（需求指定的分组顺序）');
+// 2026-10-18 调整：二元关系 / 箭头 / 集合与逻辑 三组上移到希腊字母之后、分数之前
 const expectedOrder = [
-	'common', 'greek', 'fraction', 'radical', 'limits',
-	'trig', 'integral', 'bigop', 'bracket', 'matrix',
+	'common', 'greek', 'relation', 'arrow', 'sets',
+	'fraction', 'radical', 'limits', 'trig', 'integral',
+	'bigop', 'bracket', 'matrix',
 ];
-check('分组数量 >= 10', SYMBOL_GROUPS.length >= 10, `实际 ${SYMBOL_GROUPS.length}`);
+check('分组数量 = 13', SYMBOL_GROUPS.length === expectedOrder.length, `实际 ${SYMBOL_GROUPS.length}`);
 check(
-	'前十组顺序与需求一致',
+	'分组全序与需求一致（relation/arrow/sets 紧跟 greek）',
 	expectedOrder.every((id, i) => SYMBOL_GROUPS[i]?.id === id),
-	SYMBOL_GROUPS.slice(0, 10).map((g) => g.id).join(','),
+	SYMBOL_GROUPS.map((g) => g.id).join(','),
 );
 const symIds = SYMBOL_GROUPS.map((g) => g.id);
 check('分组 id 唯一', new Set(symIds).size === symIds.length);
@@ -309,7 +311,9 @@ check(
 
 // 渲染容器样式：不做定高 / 不裁剪，高度由公式实际高度撑开
 const cssText = readRepo('styles.css');
-const formulaBlock = /\.mathbox-formula\s*\{[^}]*\}/.exec(cssText)?.[0] ?? '';
+// 只取**行首**的基础块（`m` 标志）：`.mathbox-symbol .mathbox-formula {…}` 是按钮内的特化覆盖，
+// 不带 overflow-x → 若不限定行首会被它抢先匹配
+const formulaBlock = /^\.mathbox-formula\s*\{[^}]*\}/m.exec(cssText)?.[0] ?? '';
 check('公式容器未设固定高度（高度自适应）', !/height\s*:/.test(formulaBlock), formulaBlock.slice(0, 120));
 check('公式容器允许横向滚动（超宽公式不裁切）', /overflow-x:\s*auto/.test(formulaBlock));
 check('已渲染态把字号钉到正文默认字号（与笔记公式视觉一致）', /\.mathbox-formula\.is-rendered\s*\{[^}]*font-size:\s*var\(--font-text-size/.test(cssText));
@@ -320,7 +324,71 @@ const sideSrc = readRepo('src/panel/sections/sideSection.ts');
 check('模板条目挂公式容器', /mountFormula\(btn,\s*item\.latex/.test(sideSrc));
 check('收藏条目挂公式容器', /mountFormula\(main,\s*item\.latex/.test(sideSrc));
 check('模板与收藏列表重建后均触发渲染', (sideSrc.match(/renderFormulaIn\(sections\)/g) ?? []).length === 2);
-check('快捷工具页未被改动（仍走文本符号按钮）', /renderSymbols/.test(sideSrc) && !/mountFormula\(.*symbol/i.test(sideSrc));
+// ---------------------------------------------------------------- 快捷工具面板渲染化（2026-10-18）
+check('快捷工具按钮挂公式容器（宿主 renderMath）', /mountSymbolMath\(btn,\s*display,\s*item\.label\)/.test(sideSrc));
+check('快捷工具走懒渲染（首屏若干条 + 视口触发）', /renderSymbolsLazy\(body\)/.test(sideSrc));
+check(
+	'展示用 latex 优先取 displayLatex',
+	/item\.displayLatex \?\? previewSource\(item\.latex\)/.test(sideSrc),
+);
+check(
+	'符号按钮绑定悬停浮层（第一行 latex、第二行备注）',
+	/tip\.attach\(btn/.test(sideSrc) && /remark: item\.remark\?\.\[ctx\.lang\]/.test(sideSrc),
+);
+check('浮层组件按当前语言取备注并延迟显示', /SHOW_DELAY/.test(readRepo('src/panel/floatingTooltip.ts')));
+
+// ---- 符号表数据契约：矩阵案例 / 展示用 latex / 备注覆盖 ----
+const matrixItems = SYMBOL_GROUPS.find((g) => g.id === 'matrix')?.items ?? [];
+check('矩阵组已删除单独的 2×2 条目', !matrixItems.some((i) => i.label === '2×2'));
+
+const MATRIX_ENV = /\\begin\{(?:[pbBvV]?matrix|smallmatrix)\}/;
+const wrongMatrixCase = matrixItems.filter((i) => MATRIX_ENV.test(i.displayLatex ?? '') && !(i.displayLatex ?? '').includes('a_{11}'));
+check(
+	'矩阵类展示案例用 a₁₁… 表示行列（a_{行列}）',
+	wrongMatrixCase.length === 0,
+	wrongMatrixCase.map((i) => i.label).join(' '),
+);
+
+const caseItems = matrixItems.filter((i) => i.displayLatex !== undefined);
+check(
+	`矩阵 / 多行条目均给出展示案例（${caseItems.length} 条）`,
+	caseItems.length >= 15,
+	String(caseItems.length),
+);
+check(
+	'展示案例不进入插入内容（插入仍是空骨架）',
+	caseItems.every((i) => !i.latex.includes('a_{')),
+	caseItems.filter((i) => i.latex.includes('a_{')).map((i) => i.label).join(' '),
+);
+
+const cursorInDisplay = allSymbols.filter((i) => i.displayLatex?.includes(CURSOR));
+check(
+	'displayLatex 不含 CURSOR（展示用必须是可直接渲染的完整公式）',
+	cursorInDisplay.length === 0,
+	cursorInDisplay.map((i) => i.label).join(' '),
+);
+
+const abItems = (SYMBOL_GROUPS.find((g) => g.id === 'fraction')?.items ?? []).filter((i) => i.label.startsWith('a/b'));
+check(
+	`分数条目展示 a/b 真实分式而非占位方块（${abItems.length} 条）`,
+	abItems.length >= 4 && abItems.every((i) => i.displayLatex !== undefined && !(i.displayLatex ?? '').includes('\\square')),
+	abItems.map((i) => `${i.label}=${i.displayLatex ?? '(无)'}`).join(' '),
+);
+
+const REMARK_GROUPS = ['common', 'greek', 'fraction', 'radical'];
+const remarkMissing = REMARK_GROUPS.flatMap((id) => {
+	const group = SYMBOL_GROUPS.find((g) => g.id === id);
+	return (group?.items ?? []).filter((i) => !i.remark?.zh || !i.remark?.en).map((i) => `${id}/${i.label}`);
+});
+const remarkTotal = REMARK_GROUPS.reduce(
+	(n, id) => n + (SYMBOL_GROUPS.find((g) => g.id === id)?.items.length ?? 0),
+	0,
+);
+check(
+	`前四组悬停备注全覆盖（${remarkTotal} 条）`,
+	remarkMissing.length === 0,
+	remarkMissing.slice(0, 8).join(' | '),
+);
 
 console.log(`\n结果：${failed === 0 ? '全部通过' : `${failed} 项失败`}\n`);
 process.exit(failed === 0 ? 0 : 1);

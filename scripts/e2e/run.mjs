@@ -10,7 +10,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -18,7 +18,15 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../..');
 const esbuild = join(root, 'node_modules/esbuild/bin/esbuild');
 
+/**
+ * 浏览器候选（按优先级）。
+ *
+ * 注意（2026-10-18 实测）：Edge 155.0.4283 的 `--headless=new --dump-dom`
+ * **不再向 stdout 输出 DOM**（返回 0 字节，退出码仍为 0），会让 e2e 全部误判为崩溃。
+ * 因此把**用户级安装的 Chrome**（AppData\Local\Google\Chrome）放到最前，Edge 仅作兜底。
+ */
 const CHROME_CANDIDATES = [
+	join(homedir(), 'AppData/Local/Google/Chrome/Application/chrome.exe'),
 	'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
 	'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
 	'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
@@ -77,7 +85,12 @@ writeFileSync(
   button{font-family:inherit}
 </style>
 <style>${css}</style>
-</head><body><script>${js}</script></body></html>`,
+</head><body>
+<script>window.__err='';window.addEventListener('error',function(e){window.__err+='[ERR]'+(e.message||'')+' @'+(e.filename||'')+':'+(e.lineno||0)+'\\n';document.title='ERR:'+e.message;});
+window.addEventListener('unhandledrejection',function(e){window.__err+='[REJ]'+(e.reason&&e.reason.stack||e.reason)+'\\n';document.title='REJ';});</script>
+<script>${js}</script>
+<script>if(window.__err){var p=document.createElement('pre');p.id='RESULT';p.textContent=window.__err;document.body.appendChild(p);}</script>
+</body></html>`,
 	'utf8',
 );
 
@@ -98,7 +111,8 @@ const dump = execFileSync(
 
 const match = /<pre id="RESULT">([\s\S]*?)<\/pre>/.exec(dump);
 if (!match) {
-	console.error('[e2e] 未取到结果节点，页面可能崩溃。DOM 片段：');
+	console.error('[e2e] 未取到结果节点，页面可能崩溃。page=' + page);
+console.error('[e2e] DOM 片段：');
 	console.error(dump.slice(0, 1500));
 	process.exit(2);
 }
