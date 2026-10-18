@@ -356,9 +356,31 @@ check(
 	String(caseItems.length),
 );
 check(
-	'展示案例不进入插入内容（插入仍是空骨架）',
+	'展示案例不进入插入内容（插入不含 a₁₁ 等样例字母）',
 	caseItems.every((i) => !i.latex.includes('a_{')),
 	caseItems.filter((i) => i.latex.includes('a_{')).map((i) => i.label).join(' '),
+);
+
+// 矩阵环境插入的应是「2×2 空骨架」：含 & 列分隔与 \\ 行分隔，但不含样例字母
+const MATRIX_ENVS2 = ['pmatrix', 'bmatrix', 'vmatrix', 'Vmatrix', 'Bmatrix', 'matrix', 'smallmatrix'];
+const skeletonBad = MATRIX_ENVS2.filter((env) => {
+	const item = matrixItems.find((i) => i.latex.includes(`\\begin{${env}}`));
+	if (!item) return true;
+	return !(item.latex.includes('&') && item.latex.includes('\\\\'));
+});
+check(
+	`矩阵环境插入 2×2 骨架（含 & 与 \\\\，${MATRIX_ENVS2.length} 种）`,
+	skeletonBad.length === 0,
+	skeletonBad.join(' '),
+);
+
+// 下标堆叠与带后缀 label 的条目：按渲染宽度显式收窄为 2 列
+const NARROW_TO_2 = ['substack', '≈ 约等', '≡ 恒等', '∅ 变体', '∂²y/∂x²'];
+const narrowBad = NARROW_TO_2.filter((label) => allSymbols.find((i) => i.label === label)?.span !== 2);
+check(
+	`指定条目按钮宽度为 2 列（${NARROW_TO_2.join('、')}）`,
+	narrowBad.length === 0,
+	narrowBad.join(' '),
 );
 
 const cursorInDisplay = allSymbols.filter((i) => i.displayLatex?.includes(CURSOR));

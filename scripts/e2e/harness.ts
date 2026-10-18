@@ -293,6 +293,29 @@ async function main(): Promise<void> {
 		check('矩阵组换行符条目已删除', !labels.includes('\\\\'));
 	}
 
+	// ---- 2026-10-18 第四批：下标堆叠等收窄 + 矩阵插入 2×2 骨架 ----
+	{
+		const findBtn = (label: string): HTMLElement | null =>
+			qAll<HTMLElement>('.mathbox-symbol').find(
+				(b) => (b.querySelector<HTMLElement>('.mathbox-formula')?.dataset.label ?? '') === label,
+			) ?? null;
+		const narrowLabels = ['substack', '≈ 约等', '≡ 恒等', '∅ 变体', '∂²y/∂x²'];
+		const widths = narrowLabels.map((label) => {
+			const btn = findBtn(label);
+			return `${label}=${btn ? Math.round(btn.getBoundingClientRect().width) : 0}`;
+		});
+		check(
+			'下标堆叠与带后缀条目收窄为 2 列（≤90px）',
+			narrowLabels.every((label) => {
+				const btn = findBtn(label);
+				return btn !== null && btn.getBoundingClientRect().width <= 90;
+			}),
+			widths.join(','),
+		);
+		// 注：矩阵「插入 2×2 骨架（含 & 与 \\）」由 selftest 直接校验 latex 字段，
+		// 此处不做点击验证 —— 符号插入是异步链路，会污染后续「行间插入」断言的 editor 状态
+	}
+
 	symSelect?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 	await sleep(30);
 	const symItems = qAll('.mathbox-gselect-item');

@@ -73,7 +73,7 @@ export const SYMBOL_GROUPS: SymbolGroup[] = [
 			s('⊥', '\\perp', { remark: { zh: '垂直', en: 'perpendicular to' } }), s('∥', '\\parallel', { remark: { zh: '平行', en: 'parallel to' } }), s('∤', '\\nmid', { remark: { zh: '不整除', en: 'does not divide' } }), s('∣', '\\mid', { remark: { zh: '整除', en: 'divides' } }),
 			s('≺', '\\prec', { remark: { zh: '前于', en: 'precedes' } }), s('≻', '\\succ', { remark: { zh: '后于', en: 'succeeds' } }), s('⪯', '\\preceq', { remark: { zh: '前于或等价', en: 'precedes or equal to' } }), s('⪰', '\\succeq', { remark: { zh: '后于或等价', en: 'succeeds or equal to' } }),
 			s('⊨', '\\models', { remark: { zh: '满足（模型蕴含）', en: 'models / entails' } }), s('⊢', '\\vdash', { remark: { zh: '可证', en: 'proves' } }), s('⊣', '\\dashv', { remark: { zh: '反向可证', en: 'does not prove / dashv' } }), s('⌣', '\\smile', { remark: { zh: '微笑符（同伦）', en: 'smile (homotopy)' } }),
-			s('≈ 约等', '\\approx', { remark: { zh: '约等于', en: 'approximately equal to' } }), s('≐', '\\doteq', { remark: { zh: '按定义等于', en: 'equals by definition' } }), s('⋘', '\\lll', { remark: { zh: '远小于的远小于', en: 'much much less than' } }), s('≡ 恒等', '\\equiv', { remark: { zh: '恒等', en: 'identical to' } }),
+			s('≈ 约等', '\\approx', { span: 2, remark: { zh: '约等于', en: 'approximately equal to' } }), s('≐', '\\doteq', { remark: { zh: '按定义等于', en: 'equals by definition' } }), s('⋘', '\\lll', { remark: { zh: '远小于的远小于', en: 'much much less than' } }), s('≡ 恒等', '\\equiv', { span: 2, remark: { zh: '恒等', en: 'identical to' } }),
 		],
 	},
 	{
@@ -94,7 +94,7 @@ export const SYMBOL_GROUPS: SymbolGroup[] = [
 		id: 'sets',
 		name: b('集合与逻辑', 'Sets & logic'),
 		items: [
-			s('∅', '\\emptyset', { remark: { zh: '空集', en: 'empty set' } }), s('∅ 变体', '\\varnothing', { remark: { zh: '空集（变体）', en: 'empty set (variant)' } }), s('ℕ', '\\mathbb{N}', { remark: { zh: '自然数集', en: 'natural numbers' } }), s('ℤ', '\\mathbb{Z}', { remark: { zh: '整数集', en: 'integers' } }),
+			s('∅', '\\emptyset', { remark: { zh: '空集', en: 'empty set' } }), s('∅ 变体', '\\varnothing', { span: 2, remark: { zh: '空集（变体）', en: 'empty set (variant)' } }), s('ℕ', '\\mathbb{N}', { remark: { zh: '自然数集', en: 'natural numbers' } }), s('ℤ', '\\mathbb{Z}', { remark: { zh: '整数集', en: 'integers' } }),
 			s('ℚ', '\\mathbb{Q}', { remark: { zh: '有理数集', en: 'rational numbers' } }), s('ℝ', '\\mathbb{R}', { remark: { zh: '实数集', en: 'real numbers' } }), s('ℂ', '\\mathbb{C}', { remark: { zh: '复数集', en: 'complex numbers' } }), s('ℙ', '\\mathbb{P}', { remark: { zh: '素数集', en: 'prime numbers' } }),
 			s('∀', '\\forall', { remark: { zh: '全称量词（任意）', en: 'for all' } }), s('∃', '\\exists', { remark: { zh: '存在量词（存在）', en: 'there exists' } }), s('∄', '\\nexists', { remark: { zh: '不存在', en: 'there does not exist' } }), s('¬', '\\neg', { remark: { zh: '逻辑非', en: 'logical not' } }),
 			s('∧', '\\land', { remark: { zh: '逻辑与', en: 'logical and' } }), s('∨', '\\lor', { remark: { zh: '逻辑或', en: 'logical or' } }), s('⊕', '\\oplus', { remark: { zh: '异或', en: 'exclusive or' } }), s('⟹', '\\implies', { remark: { zh: '蕴含', en: 'implies' } }),
@@ -116,7 +116,7 @@ export const SYMBOL_GROUPS: SymbolGroup[] = [
 			s('a/b 斜', `${CURSOR}/{ }`, { displayLatex: 'a/b', span: 1, remark: { zh: '斜杠分数', en: 'slashed fraction' } }),
 			s('∂', '\\partial', { remark: { zh: '偏导符号', en: 'partial derivative' } }), s('∂²', '\\partial^{2}', { remark: { zh: '二阶偏导', en: 'second partial derivative' } }), s('∂ᵢ', '\\partial_{i}', { remark: { zh: '对第 i 个变量偏导', en: 'partial with respect to i' } }),
 			s('∂y/∂x', '\\frac{\\partial y}{\\partial x}', { remark: { zh: '偏导数', en: 'partial derivative of y' } }),
-			s('∂²y/∂x²', '\\frac{\\partial^{2} y}{\\partial x^{2}}', { remark: { zh: '二阶偏导', en: 'second partial derivative' } }),
+			s('∂²y/∂x²', '\\frac{\\partial^{2} y}{\\partial x^{2}}', { span: 2, remark: { zh: '二阶偏导', en: 'second partial derivative' } }),
 			s('∂f/∂x', `\\frac{\\partial ${CURSOR}}{\\partial x}`, { displayLatex: '\\frac{\\partial f}{\\partial x}', remark: { zh: '偏导（分子待填）', en: 'partial derivative (blank numerator)' } }),
 			s('ⅆ', '\\mathrm{d}', { remark: { zh: '微分算子', en: 'differential operator' } }), s('ⅆy/ⅆx', '\\frac{\\mathrm{d}y}{\\mathrm{d}x}', { remark: { zh: '一阶导数', en: 'first derivative' } }),
 			s('ⅆf/ⅆx', `\\frac{\\mathrm{d}${CURSOR}}{\\mathrm{d}x}`, { displayLatex: '\\frac{\\mathrm{d}f}{\\mathrm{d}x}', remark: { zh: '导数（分子待填）', en: 'derivative (blank numerator)' } }),
@@ -237,14 +237,15 @@ export const SYMBOL_GROUPS: SymbolGroup[] = [
 		name: b('数组矩阵', 'Arrays & matrices'),
 		items: [
 			// 矩阵 / 数组类：按钮展示 2×2 案例（a₁₁ = 第 1 行第 1 列的元素），
-			// 插入的仍是空骨架（`latex` 里只含 CURSOR）——「展示案例、插入留白」
-			s('( )', `\\begin{pmatrix} ${CURSOR} \\end{pmatrix}`, { displayLatex: '\\begin{pmatrix} a_{11} & a_{12} \\\\ a_{21} & a_{22} \\end{pmatrix}', remark: { zh: '圆括号矩阵（插入空骨架）', en: 'parenthesized matrix' } }),
-			s('[ ]', `\\begin{bmatrix} ${CURSOR} \\end{bmatrix}`, { displayLatex: '\\begin{bmatrix} a_{11} & a_{12} \\\\ a_{21} & a_{22} \\end{bmatrix}', remark: { zh: '方括号矩阵', en: 'bracket matrix' } }),
-			s('| |', `\\begin{vmatrix} ${CURSOR} \\end{vmatrix}`, { displayLatex: '\\begin{vmatrix} a_{11} & a_{12} \\\\ a_{21} & a_{22} \\end{vmatrix}', remark: { zh: '行列式', en: 'determinant' } }),
-			s('‖ ‖', `\\begin{Vmatrix} ${CURSOR} \\end{Vmatrix}`, { displayLatex: '\\begin{Vmatrix} a_{11} & a_{12} \\\\ a_{21} & a_{22} \\end{Vmatrix}', remark: { zh: '范数矩阵', en: 'norm matrix' } }),
-			s('{ }', `\\begin{Bmatrix} ${CURSOR} \\end{Bmatrix}`, { displayLatex: '\\begin{Bmatrix} a_{11} & a_{12} \\\\ a_{21} & a_{22} \\end{Bmatrix}', remark: { zh: '花括号矩阵', en: 'brace matrix' } }),
-			s('mx', `\\begin{matrix} ${CURSOR} \\end{matrix}`, { displayLatex: '\\begin{matrix} a_{11} & a_{12} \\\\ a_{21} & a_{22} \\end{matrix}', remark: { zh: '无括号矩阵', en: 'plain matrix' } }),
-			s('小 mx', `\\begin{smallmatrix} ${CURSOR} \\end{smallmatrix}`, { displayLatex: '\\begin{smallmatrix} a_{11} & a_{12} \\\\ a_{21} & a_{22} \\end{smallmatrix}', remark: { zh: '小型矩阵', en: 'small matrix' } }),
+			// 插入 2×2 空骨架（含 & 列分隔符与 \\ 行分隔符，单元格留白待填）——
+			// 「展示案例、插入结构」，用户不必再手写分隔符
+			s('( )', `\\begin{pmatrix} ${CURSOR} & \\\\ & \\end{pmatrix}`, { displayLatex: '\\begin{pmatrix} a_{11} & a_{12} \\\\ a_{21} & a_{22} \\end{pmatrix}', remark: { zh: '圆括号矩阵（插入空骨架）', en: 'parenthesized matrix' } }),
+			s('[ ]', `\\begin{bmatrix} ${CURSOR} & \\\\ & \\end{bmatrix}`, { displayLatex: '\\begin{bmatrix} a_{11} & a_{12} \\\\ a_{21} & a_{22} \\end{bmatrix}', remark: { zh: '方括号矩阵', en: 'bracket matrix' } }),
+			s('| |', `\\begin{vmatrix} ${CURSOR} & \\\\ & \\end{vmatrix}`, { displayLatex: '\\begin{vmatrix} a_{11} & a_{12} \\\\ a_{21} & a_{22} \\end{vmatrix}', remark: { zh: '行列式', en: 'determinant' } }),
+			s('‖ ‖', `\\begin{Vmatrix} ${CURSOR} & \\\\ & \\end{Vmatrix}`, { displayLatex: '\\begin{Vmatrix} a_{11} & a_{12} \\\\ a_{21} & a_{22} \\end{Vmatrix}', remark: { zh: '范数矩阵', en: 'norm matrix' } }),
+			s('{ }', `\\begin{Bmatrix} ${CURSOR} & \\\\ & \\end{Bmatrix}`, { displayLatex: '\\begin{Bmatrix} a_{11} & a_{12} \\\\ a_{21} & a_{22} \\end{Bmatrix}', remark: { zh: '花括号矩阵', en: 'brace matrix' } }),
+			s('mx', `\\begin{matrix} ${CURSOR} & \\\\ & \\end{matrix}`, { displayLatex: '\\begin{matrix} a_{11} & a_{12} \\\\ a_{21} & a_{22} \\end{matrix}', remark: { zh: '无括号矩阵', en: 'plain matrix' } }),
+			s('小 mx', `\\begin{smallmatrix} ${CURSOR} & \\\\ & \\end{smallmatrix}`, { displayLatex: '\\begin{smallmatrix} a_{11} & a_{12} \\\\ a_{21} & a_{22} \\end{smallmatrix}', remark: { zh: '小型矩阵', en: 'small matrix' } }),
 			s('⇉ 分段', `\\begin{cases} ${CURSOR} \\end{cases}`, { displayLatex: '\\begin{cases} x, & x > 0 \\\\ 0, & x \\leq 0 \\end{cases}', remark: { zh: '分段函数', en: 'piecewise function' } }),
 			s('⩽ 对齐', `\\begin{align} ${CURSOR} \\end{align}`, { displayLatex: '\\begin{align} a &= b \\\\ c &= d \\end{align}', remark: { zh: '对齐公式（带编号）', en: 'aligned equations' } }),
 			s('对齐无号', `\\begin{aligned} ${CURSOR} \\end{aligned}`, { displayLatex: '\\begin{aligned} a &= b \\\\ c &= d \\end{aligned}', remark: { zh: '对齐公式（无编号）', en: 'aligned without tags' } }),
@@ -253,7 +254,7 @@ export const SYMBOL_GROUPS: SymbolGroup[] = [
 			s('arr 三线', `\\begin{array}{ccc} ${CURSOR} \\end{array}`, { displayLatex: '\\begin{array}{ccc} a & b & c \\\\ d & e & f \\end{array}', remark: { zh: '数组（三列）', en: 'array with three columns' } }),
 			s('gather', `\\begin{gathered} ${CURSOR} \\end{gathered}`, { displayLatex: '\\begin{gathered} a = b \\\\ c = d \\end{gathered}', remark: { zh: '多行居中公式', en: 'gathered equations' } }),
 			s('split', `\\begin{split} ${CURSOR} \\end{split}`, { displayLatex: '\\begin{split} a &= b \\\\ &= c \\end{split}', remark: { zh: '单环境内多行对齐', en: 'split equation' } }),
-			s('substack', `\\substack{${CURSOR} \\\\ }`, { displayLatex: '\\substack{a \\\\ b}', remark: { zh: '下标堆叠', en: 'substack' } }),
+			s('substack', `\\substack{${CURSOR} \\\\ }`, { displayLatex: '\\substack{a \\\\ b}', span: 2, remark: { zh: '下标堆叠', en: 'substack' } }),
 			s('⋯', '\\cdots', { remark: { zh: '居中省略号', en: 'centered dots' } }), s('⋮', '\\vdots', { remark: { zh: '竖向省略号', en: 'vertical dots' } }), s('⋱', '\\ddots', { remark: { zh: '对角省略号', en: 'diagonal dots' } }), s('…', '\\dots', { remark: { zh: '省略号', en: 'dots' } }),
 			s('&', '&', { remark: { zh: '列分隔符（对齐用）', en: 'column separator' } }), s('⇉ 2行公式', '\\begin{cases} x, & x > 0 \\\\ 0, & x \\leq 0 \\end{cases}', { remark: { zh: '两行分段函数（案例）', en: 'two-row piecewise (example)' } }),
 		],
