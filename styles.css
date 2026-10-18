@@ -891,6 +891,83 @@ body.mathbox-resizing {
 	border-color: var(--interactive-accent);
 }
 
+/* ===== 快捷工具：按钮内的公式渲染区 =====
+ * 按钮内容由宿主 renderMath 渲染（Computer Modern / TeX 字体，与笔记正文公式一致）。
+ * 渲染前用 Unicode `label` 作占位（沿用按钮的正文风格，**不用等宽字体**），
+ * 渲染后原地替换为 mjx-container，字号前后一致以避免跳动。 */
+.mathbox-symbol .mathbox-formula {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.mathbox-symbol .mathbox-formula:not(.is-rendered) {
+	font-family: inherit;
+	font-size: 15px;
+	line-height: 1.25;
+	white-space: nowrap;
+	word-break: normal;
+	color: inherit;
+}
+
+.mathbox-symbol .mathbox-formula.is-rendered {
+	font-size: 15px;
+	line-height: normal;
+	overflow: visible;
+}
+
+.mathbox-symbol .mathbox-formula.is-rendered > mjx-container {
+	margin: 0 !important;
+}
+
+/* ===== 悬停提示浮层（第一行 LaTeX 源码、第二行中/英备注） ===== */
+.mathbox-tip {
+	position: fixed;
+	z-index: 70;
+	max-width: 320px;
+	padding: 6px 9px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-primary);
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+	/* 浮层不拦截鼠标，避免打断点击 */
+	pointer-events: none;
+}
+
+.mathbox-tip[hidden] {
+	display: none;
+}
+
+.mathbox-tip-latex {
+	display: block;
+	font-family: var(--font-monospace);
+	font-size: 12px;
+	line-height: 1.45;
+	color: var(--text-normal);
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.mathbox-tip-remark {
+	margin-top: 4px;
+	font-size: 11.5px;
+	line-height: 1.4;
+	color: var(--text-muted);
+}
+
+.mathbox-tip-remark[hidden] {
+	display: none;
+}
+
+/* 深色主题下加深描边，避免浮层与面板背景糊在一起 */
+body.theme-dark .mathbox-tip {
+	border-color: #45474f;
+	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
 .mathbox-template-list {
 	display: flex;
 	flex-direction: column;

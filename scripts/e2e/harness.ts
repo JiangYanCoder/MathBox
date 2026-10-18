@@ -173,6 +173,73 @@ async function main(): Promise<void> {
 	);
 	check('内容区可滚动', sideBody.scrollHeight > sideBody.clientHeight, `${sideBody.scrollHeight}/${sideBody.clientHeight}`);
 
+	// ---- 快捷工具面板渲染化（2026-10-18）----
+	{
+		const hosts = qAll<HTMLElement>('.mathbox-symbol .mathbox-formula');
+		const expected = SYMBOL_GROUPS.reduce((n, g) => n + g.items.length, 0);
+		check('快捷工具：每个按钮都挂公式容器', hosts.length === expected, `${hosts.length}/${expected}`);
+		check(
+			'快捷工具：容器带 data-label 占位（渲染后 textContent 为空，断言靠它）',
+			hosts.length > 0 && hosts.every((h) => (h.dataset.label ?? '').length > 0),
+		);
+		const renderedHosts = hosts.filter((h) => h.classList.contains('is-rendered'));
+		check(
+			'快捷工具：首屏批次已渲染（懒渲染，不是全量）',
+			renderedHosts.length >= 40,
+			`${renderedHosts.length}/${hosts.length}`,
+		);
+		check(
+			'快捷工具：渲染结果为 mjx-container（宿主 renderMath 产物）',
+			renderedHosts.every((h) => Boolean(h.querySelector('.mjx-container'))),
+		);
+
+		// 分组顺序：relation / arrow / sets 紧跟 greek
+		const heads = qAll('.mathbox-side-body .mathbox-side-group').map((h) => h.textContent ?? '');
+		check(
+			'分组顺序：二元关系 → 箭头 → 集合与逻辑 紧跟希腊字母之后',
+			heads[0] === SYMBOL_GROUPS[0]?.name.zh &&
+				heads[1] === SYMBOL_GROUPS[1]?.name.zh &&
+				heads[2] === SYMBOL_GROUPS[2]?.name.zh &&
+				heads[3] === SYMBOL_GROUPS[3]?.name.zh &&
+				heads[4] === SYMBOL_GROUPS[4]?.name.zh &&
+				SYMBOL_GROUPS[2]?.id === 'relation' &&
+				SYMBOL_GROUPS[3]?.id === 'arrow' &&
+				SYMBOL_GROUPS[4]?.id === 'sets',
+			heads.slice(0, 6).join('|'),
+		);
+
+		// 分数：a/b 展示真实分式（不是 \square 占位方块）
+		const ab = hosts.find((h) => h.dataset.label === 'a/b');
+		check('分数 a/b 按钮展示 a/b 分式', ab?.dataset.tex === '\\frac{a}{b}', ab?.dataset.tex ?? '(none)');
+
+		// 矩阵：展示案例用 a₁₁… 表示行列，且以 display 模式渲染
+		const pmat = hosts.find((h) => (h.dataset.tex ?? '').includes('pmatrix'));
+		check('矩阵按钮展示 a₁₁… 行列案例', (pmat?.dataset.tex ?? '').includes('a_{11}'), pmat?.dataset.tex ?? '(none)');
+		check('矩阵按钮以 display 模式渲染', pmat?.dataset.display === '1', pmat?.dataset.display ?? '(none)');
+		check('2×2 单独条目已删除', !hosts.some((h) => h.dataset.label === '2×2'));
+	}
+
+	// ---- 悬停浮层：第一行 LaTeX 源码、第二行备注 ----
+	{
+		const btn = qAll<HTMLElement>('.mathbox-symbol').find(
+			(b) => (b.querySelector<HTMLElement>('.mathbox-formula')?.dataset.label ?? '') === '±',
+		);
+		check('找到可悬停的符号按钮（±）', Boolean(btn));
+		btn?.dispatchEvent(new MouseEvent('mouseenter'));
+		await sleep(420); // SHOW_DELAY = 300 ms
+		const tip = q<HTMLElement>('.mathbox-tip');
+		check('悬停后弹出提示浮层', tip !== null && tip.hidden === false, tip ? String(tip.hidden) : '(none)');
+		check('浮层第一行 = LaTeX 源码', q('.mathbox-tip-latex')?.textContent === '\\pm', q('.mathbox-tip-latex')?.textContent ?? '(none)');
+		check(
+			'浮层第二行 = 中文备注',
+			(q('.mathbox-tip-remark')?.textContent ?? '').includes('正负号'),
+			q('.mathbox-tip-remark')?.textContent ?? '(none)',
+		);
+		btn?.dispatchEvent(new MouseEvent('mouseleave'));
+		await sleep(30);
+		check('移出后浮层收起', q<HTMLElement>('.mathbox-tip')?.hidden === true);
+	}
+
 	symSelect?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 	await sleep(30);
 	const symItems = qAll('.mathbox-gselect-item');
@@ -180,7 +247,7 @@ async function main(): Promise<void> {
 	check('弹出列表文本与分组名一一对应', symItems.every((c, i) => c.textContent === SYMBOL_GROUPS[i]?.name.zh));
 	check('当前分组在列表中高亮', symItems[0]?.classList.contains('is-active') === true);
 
-	// 点选「希腊字母」= 快速跳转（按钮文案切换 + 触发滚动，内容仍保留全部分组）
+	// 点选列表第 5 项 = 快速跳转（按钮文案切换 + 触发滚动，内容仍保留全部分组）
 	symItems[4]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 	await sleep(30);
 	check('点选后按钮切到第 5 个分组', q('.mathbox-gselect-label')?.textContent === SYMBOL_GROUPS[4]?.name.zh, q('.mathbox-gselect-label')?.textContent ?? '(none)');

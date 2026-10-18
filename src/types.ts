@@ -84,10 +84,19 @@ export interface Bilingual {
 
 /** 符号面板条目 */
 export interface SymbolItem {
-	/** 按钮上显示的字符（Unicode），零渲染开销 */
+	/** 按钮上显示的字符（Unicode），渲染前的占位文本 / 渲染失败时的降级显示 */
 	label: string;
-	/** 点击后插入的 LaTeX 命令 */
+	/** 点击后插入的 LaTeX 命令（通常含 `CURSOR`，即空骨架） */
 	latex: string;
+	/**
+	 * 按钮**展示**用的 LaTeX（渲染成按钮图形），与插入用 `latex` 解耦。
+	 *
+	 * 缺省时取 `latex` 并把 `CURSOR` 换成 `\square`；
+	 * 需要「插入空骨架、展示真实案例」的条目（分数显示 a/b、矩阵显示 a₁₁…）必须显式给出。
+	 */
+	displayLatex?: string;
+	/** 悬停弹窗第二行备注（中英双语，按当前界面语言取用） */
+	remark?: Bilingual;
 }
 
 /** 符号分组 */
