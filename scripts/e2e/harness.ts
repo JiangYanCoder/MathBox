@@ -276,6 +276,23 @@ async function main(): Promise<void> {
 		),
 	);
 
+	// ---- 2026-10-18 第三批：分式收窄 / 积分加宽加高 / 连分数迁移 / 删换行符 ----
+	{
+		const fracGrid = q<HTMLElement>('.mathbox-symbol-grid[data-group="fraction"]');
+		const abBtn = fracGrid?.querySelector<HTMLElement>('.mathbox-symbol') ?? null;
+		const abW = abBtn ? Math.round(abBtn.getBoundingClientRect().width) : 0;
+		check('分式按钮收窄（span 1，约一格宽）', abW > 0 && abW <= 48, `${abW}px`);
+
+		const integralGrid = q<HTMLElement>('.mathbox-symbol-grid[data-group="integral"]');
+		const intBtn = integralGrid?.querySelector<HTMLElement>('.mathbox-symbol') ?? null;
+		const intH = intBtn ? Math.round(intBtn.getBoundingClientRect().height) : 0;
+		check('积分按钮加高（≥52px）', intH >= 52, `${intH}px`);
+
+		const labels = qAll<HTMLElement>('.mathbox-symbol .mathbox-formula').map((h) => h.dataset.label ?? '');
+		check('快捷工具已移除连分数（迁至公式模板）', labels.length > 0 && !labels.includes('连分数'));
+		check('矩阵组换行符条目已删除', !labels.includes('\\\\'));
+	}
+
 	symSelect?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 	await sleep(30);
 	const symItems = qAll('.mathbox-gselect-item');

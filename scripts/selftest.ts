@@ -402,5 +402,41 @@ check(
 );
 check('极限对数组已删除 argmax / argmin', !allSymbols.some((i) => i.label === 'argmax' || i.label === 'argmin'));
 
+// ---- 2026-10-18 第三批：分式收窄 / 连分数迁移 / 积分加宽加高 / 删换行符 ----
+const fracItems = SYMBOL_GROUPS.find((g) => g.id === 'fraction')?.items ?? [];
+const abItems2 = fracItems.filter((i) => i.label.startsWith('a/b'));
+check(
+	`分式 a/b 类显式 span 1 收窄（${abItems2.length} 条）`,
+	abItems2.length >= 3 && abItems2.every((i) => i.span === 1),
+	abItems2.map((i) => `${i.label}=${i.span ?? '缺省'}`).join(' '),
+);
+check('连分数已从快捷工具移除', !allSymbols.some((i) => i.label === '连分数'));
+check(
+	'公式模板「分数与根式」收录连分数',
+	(TEMPLATE_GROUPS.find((g) => g.id === 'fraction')?.items ?? []).some(
+		(i) => i.name.zh === '连分数' && i.latex.includes('\\cfrac'),
+	),
+);
+check('矩阵组换行符条目已删除', !allSymbols.some((i) => i.label === '\\\\'));
+
+const integralItems = SYMBOL_GROUPS.find((g) => g.id === 'integral')?.items ?? [];
+check(
+	'积分长公式显式跨列（不定积分 span 3 / 区域 D 二重积分 span 4）',
+	integralItems.find((i) => i.label === '∫fⅆx')?.span === 3 &&
+		integralItems.find((i) => i.label === '∫∫ 域')?.span === 4,
+	integralItems
+		.filter((i) => i.span !== undefined)
+		.map((i) => `${i.label}=${i.span}`)
+		.join(' '),
+);
+check(
+	'积分组按钮留足高度（min-height 52px）',
+	/\.mathbox-symbol-grid\[data-group="integral"\]\s+\.mathbox-symbol\s*\{[^}]*min-height:\s*52px/.test(cssText),
+);
+check(
+	'span 字段在合理区间（1–4）',
+	allSymbols.every((i) => i.span === undefined || (i.span >= 1 && i.span <= 4)),
+);
+
 console.log(`\n结果：${failed === 0 ? '全部通过' : `${failed} 项失败`}\n`);
 process.exit(failed === 0 ? 0 : 1);

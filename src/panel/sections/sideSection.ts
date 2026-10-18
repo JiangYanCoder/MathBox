@@ -33,7 +33,7 @@ import {
 } from '../../favorites/store';
 import { SYMBOL_GROUPS } from '../../symbols';
 import { TEMPLATE_GROUPS } from '../../templates';
-import type { FavoriteItem } from '../../types';
+import type { FavoriteItem, SymbolItem } from '../../types';
 import { isBlockFormula, previewSource } from '../../core/formula';
 import { FloatingTooltip } from '../floatingTooltip';
 import { mountFormula, mountSymbolMath, renderFormulaIn, renderSymbolsLazy } from '../formulaView';
@@ -61,14 +61,15 @@ const WIDE_CHAR = /[\u1100-\u115F\u2E80-\u303E\u3041-\u33FF\u3400-\u4DBF\u4E00-\
 
 /**
  * 符号按钮应占的列数（网格为 `repeat(auto-fill, minmax(32px, 1fr))`）：
- *  · 展示内容是块级公式（矩阵 / 分段 / 对齐等多行环境）→ 跨 **4 列**，
- *    容得下 2×2 案例与分段函数；
+ *  · 条目显式给了 `span`（长公式 / 窄分式这类渲染宽度与 label 宽度不符的）→ 用它；
+ *  · 展示内容是块级公式（矩阵 / 分段 / 对齐等多行环境）→ 跨 **4 列**；
  *  · 其余按占位文本的显示宽度分档（1 / 2 / 3 列）。
  */
-function symbolSpan(label: string, displaySource: string): number {
+function symbolSpan(item: SymbolItem, displaySource: string): number {
+	if (item.span !== undefined) return item.span;
 	if (isBlockFormula(displaySource)) return 4;
 	let width = 0;
-	for (const ch of label) width += WIDE_CHAR.test(ch) ? 2 : 1;
+	for (const ch of item.label) width += WIDE_CHAR.test(ch) ? 2 : 1;
 	if (width <= 2) return 1;
 	if (width <= 5) return 2;
 	return 3;
@@ -263,7 +264,7 @@ export function createSideSection(
 				// 展示用源码：优先 `displayLatex`（分数显示 a/b、矩阵显示 a₁₁… 案例），
 				// 缺省时取插入用 latex 并把 CURSOR 换成占位方块
 				const display = item.displayLatex ?? previewSource(item.latex);
-				const span = symbolSpan(item.label, display);
+				const span = symbolSpan(item, display);
 				if (span > 1) btn.style.gridColumn = `span ${span}`;
 				// 按钮内容由宿主 renderMath 渲染（Computer Modern / TeX 字体），
 				// 先进视口的先渲染，其余滚动到视口再渲染，见 renderSymbolsLazy

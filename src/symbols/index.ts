@@ -22,8 +22,8 @@
 import { CURSOR } from '../core/constants';
 import type { Bilingual, SymbolGroup, SymbolItem } from '../types';
 
-/** 第三参数：展示用 latex / 悬停备注（都可省略） */
-type SymbolExtra = Pick<SymbolItem, 'displayLatex' | 'remark'>;
+/** 第三参数：展示用 latex / 悬停备注 / 显式跨列数（都可省略） */
+type SymbolExtra = Pick<SymbolItem, 'displayLatex' | 'remark' | 'span'>;
 
 const s = (label: string, latex: string, extra?: SymbolExtra): SymbolItem =>
 	extra ? { label, latex, ...extra } : { label, latex };
@@ -107,12 +107,13 @@ export const SYMBOL_GROUPS: SymbolGroup[] = [
 		id: 'fraction',
 		name: b('分数微分', 'Fractions & differentials'),
 		items: [
-			// 展示 a/b 真实分式（而非 \square 占位方块），插入仍是空骨架
-			s('a/b', `\\frac{${CURSOR}}{}`, { displayLatex: '\\frac{a}{b}', remark: { zh: '分数（空骨架）', en: 'fraction (empty)' } }),
-			s('a/b 大', `\\dfrac{${CURSOR}}{}`, { displayLatex: '\\dfrac{a}{b}', remark: { zh: '大型分数', en: 'display-style fraction' } }),
-			s('a/b 小', `\\tfrac{${CURSOR}}{}`, { displayLatex: '\\tfrac{a}{b}', remark: { zh: '小型分数', en: 'text-style fraction' } }),
-			s('连分数', '\\cfrac{1}{1 + \\cfrac{1}{1 + \\cfrac{1}{1}}}', { remark: { zh: '连分数', en: 'continued fraction' } }),
-			s('a/b 斜', `${CURSOR}/{ }`, { displayLatex: 'a/b', remark: { zh: '斜杠分数', en: 'slashed fraction' } }),
+			// 展示 a/b 真实分式（而非 \square 占位方块），插入仍是空骨架；
+			// 渲染宽度只有约 20px，显式 span 1（默认会按 label "a/b" 算成 2 列，显得过宽）
+			s('a/b', `\\frac{${CURSOR}}{}`, { displayLatex: '\\frac{a}{b}', span: 1, remark: { zh: '分数（空骨架）', en: 'fraction (empty)' } }),
+			s('a/b 大', `\\dfrac{${CURSOR}}{}`, { displayLatex: '\\dfrac{a}{b}', span: 1, remark: { zh: '大型分数', en: 'display-style fraction' } }),
+			s('a/b 小', `\\tfrac{${CURSOR}}{}`, { displayLatex: '\\tfrac{a}{b}', span: 1, remark: { zh: '小型分数', en: 'text-style fraction' } }),
+			// 连分数体积大、占用多列，已移到「公式模板 → 分数与根式」（2026-10-18）
+			s('a/b 斜', `${CURSOR}/{ }`, { displayLatex: 'a/b', span: 1, remark: { zh: '斜杠分数', en: 'slashed fraction' } }),
 			s('∂', '\\partial', { remark: { zh: '偏导符号', en: 'partial derivative' } }), s('∂²', '\\partial^{2}', { remark: { zh: '二阶偏导', en: 'second partial derivative' } }), s('∂ᵢ', '\\partial_{i}', { remark: { zh: '对第 i 个变量偏导', en: 'partial with respect to i' } }),
 			s('∂y/∂x', '\\frac{\\partial y}{\\partial x}', { remark: { zh: '偏导数', en: 'partial derivative of y' } }),
 			s('∂²y/∂x²', '\\frac{\\partial^{2} y}{\\partial x^{2}}', { remark: { zh: '二阶偏导', en: 'second partial derivative' } }),
@@ -183,13 +184,14 @@ export const SYMBOL_GROUPS: SymbolGroup[] = [
 			s('∫', '\\int', { remark: { zh: '不定积分', en: 'integral' } }), s('∬', '\\iint', { remark: { zh: '二重积分', en: 'double integral' } }), s('∭', '\\iiint', { remark: { zh: '三重积分', en: 'triple integral' } }), s('∮', '\\oint', { remark: { zh: '环路积分', en: 'contour integral' } }),
 			s('∫ₐᵇ', '\\int_{a}^{b}', { remark: { zh: '定积分（a 到 b）', en: 'definite integral from a to b' } }), s('∫₀¹', '\\int_{0}^{1}', { remark: { zh: '0 到 1 的定积分', en: 'integral from 0 to 1' } }), s('∫₋∞∞', '\\int_{-\\infty}^{\\infty}', { remark: { zh: '全实数轴积分', en: 'integral over the real line' } }),
 			s('∬_D', '\\iint_{D}', { remark: { zh: '区域 D 上的二重积分', en: 'double integral over D' } }), s('∭_Ω', '\\iiint_{\\Omega}', { remark: { zh: '区域 Ω 上的三重积分', en: 'triple integral over omega' } }), s('∮_C', '\\oint_{C}', { remark: { zh: '曲线 C 上的环路积分', en: 'contour integral over C' } }),
-			s('∫fⅆx', '\\int f(x)\\,\\mathrm{d}x', { remark: { zh: '不定积分（含被积函数）', en: 'indefinite integral with integrand' } }),
-			s('∫fⅆx 定', '\\int_{a}^{b} f(x)\\,\\mathrm{d}x', { remark: { zh: '定积分（含被积函数）', en: 'definite integral with integrand' } }),
+			// 长公式按渲染宽度显式跨列（默认按 label 宽度算会偏窄）
+			s('∫fⅆx', '\\int f(x)\\,\\mathrm{d}x', { span: 3, remark: { zh: '不定积分（含被积函数）', en: 'indefinite integral with integrand' } }),
+			s('∫fⅆx 定', '\\int_{a}^{b} f(x)\\,\\mathrm{d}x', { span: 3, remark: { zh: '定积分（含被积函数）', en: 'definite integral with integrand' } }),
 			s('∫ᵤ', '\\int_{S}', { remark: { zh: '曲面 S 上的积分', en: 'integral over surface S' } }), s('∫∫∫∫', '\\iiiint', { remark: { zh: '四重积分', en: 'quadruple integral' } }),
-			s('∫∫ 域', '\\iint_{D} f(x,y)\\,\\mathrm{d}x\\,\\mathrm{d}y', { remark: { zh: '区域 D 上的二重积分（含被积函数）', en: 'double integral with integrand' } }),
-			s('∮F·ⅆl', '\\oint_{C} \\vec{F} \\cdot \\mathrm{d}\\vec{l}', { remark: { zh: '向量场环量', en: 'circulation of vector field' } }),
-			s('∫₀^T', '\\int_{0}^{T}', { remark: { zh: '0 到 T 的积分', en: 'integral from 0 to T' } }), s('∫ⅆx/x', '\\int \\frac{\\mathrm{d}x}{x}', { remark: { zh: '对数型积分', en: 'logarithmic integral' } }),
-			s('∂∫', '\\partial \\int', { remark: { zh: '偏导与积分组合', en: 'partial derivative of integral' } }), s('∫ 上下限', '\\int\\limits_{a}^{b}', { remark: { zh: '显式上下限的积分', en: 'integral with explicit limits' } }),
+			s('∫∫ 域', '\\iint_{D} f(x,y)\\,\\mathrm{d}x\\,\\mathrm{d}y', { span: 4, remark: { zh: '区域 D 上的二重积分（含被积函数）', en: 'double integral with integrand' } }),
+			s('∮F·ⅆl', '\\oint_{C} \\vec{F} \\cdot \\mathrm{d}\\vec{l}', { span: 3, remark: { zh: '向量场环量', en: 'circulation of vector field' } }),
+			s('∫₀^T', '\\int_{0}^{T}', { remark: { zh: '0 到 T 的积分', en: 'integral from 0 to T' } }), s('∫ⅆx/x', '\\int \\frac{\\mathrm{d}x}{x}', { span: 2, remark: { zh: '对数型积分', en: 'logarithmic integral' } }),
+			s('∂∫', '\\partial \\int', { remark: { zh: '偏导与积分组合', en: 'partial derivative of integral' } }), s('∫ 上下限', '\\int\\limits_{a}^{b}', { span: 2, remark: { zh: '显式上下限的积分', en: 'integral with explicit limits' } }),
 		],
 	},
 	{
@@ -253,7 +255,7 @@ export const SYMBOL_GROUPS: SymbolGroup[] = [
 			s('split', `\\begin{split} ${CURSOR} \\end{split}`, { displayLatex: '\\begin{split} a &= b \\\\ &= c \\end{split}', remark: { zh: '单环境内多行对齐', en: 'split equation' } }),
 			s('substack', `\\substack{${CURSOR} \\\\ }`, { displayLatex: '\\substack{a \\\\ b}', remark: { zh: '下标堆叠', en: 'substack' } }),
 			s('⋯', '\\cdots', { remark: { zh: '居中省略号', en: 'centered dots' } }), s('⋮', '\\vdots', { remark: { zh: '竖向省略号', en: 'vertical dots' } }), s('⋱', '\\ddots', { remark: { zh: '对角省略号', en: 'diagonal dots' } }), s('…', '\\dots', { remark: { zh: '省略号', en: 'dots' } }),
-			s('&', '&', { remark: { zh: '列分隔符（对齐用）', en: 'column separator' } }), s('\\\\', '\\\\', { remark: { zh: '换行符（矩阵换行）', en: 'row separator' } }), s('⇉ 2行公式', '\\begin{cases} x, & x > 0 \\\\ 0, & x \\leq 0 \\end{cases}', { remark: { zh: '两行分段函数（案例）', en: 'two-row piecewise (example)' } }),
+			s('&', '&', { remark: { zh: '列分隔符（对齐用）', en: 'column separator' } }), s('⇉ 2行公式', '\\begin{cases} x, & x > 0 \\\\ 0, & x \\leq 0 \\end{cases}', { remark: { zh: '两行分段函数（案例）', en: 'two-row piecewise (example)' } }),
 		],
 	},
 ];
