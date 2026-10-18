@@ -235,7 +235,12 @@ export function createSideSection(
 				parent: body,
 			});
 			anchors.push(head);
-			const grid = makeEl('div', { cls: 'mathbox-symbol-grid', parent: body });
+			// data-group 供样式按分组微调按钮尺寸（分式 / 矩阵渲染后纵向更高）
+			const grid = makeEl('div', {
+				cls: 'mathbox-symbol-grid',
+				attr: { 'data-group': group.id },
+				parent: body,
+			});
 
 			// 数组矩阵分组：首位提供「自定义矩阵」入口（输入行数 / 列数 / 环境）
 			if (group.id === 'matrix') {

@@ -240,6 +240,42 @@ async function main(): Promise<void> {
 		check('移出后浮层收起', q<HTMLElement>('.mathbox-tip')?.hidden === true);
 	}
 
+	// ---- 备注已覆盖全部 13 组：抽查「箭头」组（第二批补齐）----
+	{
+		const arrowBtn = qAll<HTMLElement>('.mathbox-symbol').find(
+			(b) => (b.querySelector<HTMLElement>('.mathbox-formula')?.dataset.label ?? '') === '⟹',
+		);
+		arrowBtn?.dispatchEvent(new MouseEvent('mouseenter'));
+		await sleep(420);
+		check(
+			'箭头组条目也有备注（非首批组已补齐）',
+			(q('.mathbox-tip-remark')?.textContent ?? '').includes('长双线右箭头'),
+			q('.mathbox-tip-remark')?.textContent ?? '(none)',
+		);
+		arrowBtn?.dispatchEvent(new MouseEvent('mouseleave'));
+		await sleep(20);
+	}
+
+	// ---- 按钮尺寸：分式 / 矩阵纵向更高 ----
+	{
+		const fracGrid = q<HTMLElement>('.mathbox-symbol-grid[data-group="fraction"]');
+		const matrixGrid = q<HTMLElement>('.mathbox-symbol-grid[data-group="matrix"]');
+		check('网格带 data-group 标记', Boolean(fracGrid && matrixGrid));
+		const fracBtn = fracGrid?.querySelector<HTMLElement>('.mathbox-symbol') ?? null;
+		const matrixBtn = matrixGrid?.querySelector<HTMLElement>('.mathbox-symbol:not(.is-action)') ?? null;
+		const fracH = fracBtn ? Math.round(fracBtn.getBoundingClientRect().height) : 0;
+		const matrixH = matrixBtn ? Math.round(matrixBtn.getBoundingClientRect().height) : 0;
+		check('分式按钮加高（≥54px，容纳上下分式）', fracH >= 54, `${fracH}px`);
+		check('矩阵按钮加高（≥74px，容纳 2×2 案例）', matrixH >= 74, `${matrixH}px`);
+	}
+
+	check(
+		'极限对数组已删除 argmax / argmin',
+		!qAll<HTMLElement>('.mathbox-symbol .mathbox-formula').some(
+			(h) => h.dataset.label === 'argmax' || h.dataset.label === 'argmin',
+		),
+	);
+
 	symSelect?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 	await sleep(30);
 	const symItems = qAll('.mathbox-gselect-item');

@@ -375,20 +375,32 @@ check(
 	abItems.map((i) => `${i.label}=${i.displayLatex ?? '(无)'}`).join(' '),
 );
 
-const REMARK_GROUPS = ['common', 'greek', 'fraction', 'radical'];
-const remarkMissing = REMARK_GROUPS.flatMap((id) => {
-	const group = SYMBOL_GROUPS.find((g) => g.id === id);
-	return (group?.items ?? []).filter((i) => !i.remark?.zh || !i.remark?.en).map((i) => `${id}/${i.label}`);
-});
-const remarkTotal = REMARK_GROUPS.reduce(
-	(n, id) => n + (SYMBOL_GROUPS.find((g) => g.id === id)?.items.length ?? 0),
-	0,
+// ---- 悬停备注：全部 13 组覆盖（2026-10-18 第二批补齐 relation…matrix 共 245 条）----
+const remarkMissing = SYMBOL_GROUPS.flatMap((group) =>
+	group.items.filter((i) => !i.remark?.zh || !i.remark?.en).map((i) => `${group.id}/${i.label}`),
 );
+const remarkTotal = allSymbols.length;
 check(
-	`前四组悬停备注全覆盖（${remarkTotal} 条）`,
+	`全部分组悬停备注全覆盖（${remarkTotal} 条）`,
 	remarkMissing.length === 0,
 	remarkMissing.slice(0, 8).join(' | '),
 );
+check(
+	'备注中英双语且互不相同',
+	allSymbols.every((i) => (i.remark?.zh ?? '') !== (i.remark?.en ?? '')),
+);
+
+// ---- 按钮尺寸：分式 / 矩阵渲染后纵向更高，样式按分组抬下限 ----
+check(
+	'快捷工具网格带 data-group（供按分组调尺寸）',
+	/attr: \{ 'data-group': group\.id \}/.test(sideSrc),
+);
+check(
+	'分式与矩阵按钮留足渲染高度',
+	/\.mathbox-symbol-grid\[data-group="fraction"\]\s+\.mathbox-symbol\s*\{[^}]*min-height:\s*54px/.test(cssText) &&
+		/\.mathbox-symbol-grid\[data-group="matrix"\]\s+\.mathbox-symbol\s*\{[^}]*min-height:\s*74px/.test(cssText),
+);
+check('极限对数组已删除 argmax / argmin', !allSymbols.some((i) => i.label === 'argmax' || i.label === 'argmin'));
 
 console.log(`\n结果：${failed === 0 ? '全部通过' : `${failed} 项失败`}\n`);
 process.exit(failed === 0 ? 0 : 1);
