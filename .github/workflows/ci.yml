@@ -33,16 +33,18 @@ jobs:
             - name: 安装依赖
               run: npm ci
 
+            # 符号表预渲染：生成 src/symbols/rendered.generated.ts（不入库）
+            # **必须排在类型检查与自检之前** —— tsconfig 的 include 覆盖 scripts/，
+            # 而 scripts/selftest.ts 直接 import 这份产物；缺失时 tsc 报 TS2307 直接失败
+            # （2026-10-18 修：此前误排在类型检查之后，导致每次 CI 都在第 5 步失败）
+            - name: 预渲染符号表
+              run: npm run prerender
+
             - name: 类型检查
               run: npx tsc -noEmit -skipLibCheck
 
             - name: Lint
               run: npm run lint
-
-            # 符号表预渲染：生成 src/symbols/rendered.generated.ts（不入库）
-            # 必须排在 tsc 与自检之前 —— 二者都会读这份产物
-            - name: 预渲染符号表
-              run: npm run prerender
 
             # 自检：纯逻辑层与数据表完整性（scripts/selftest.ts 打包后运行）
             # 含宏展开与宏表的一致性断言 —— 二者不同步会让插入的公式
