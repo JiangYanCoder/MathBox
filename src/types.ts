@@ -97,6 +97,12 @@ export interface SymbolItem {
 	displayLatex?: string;
 	/** 悬停弹窗第二行备注（中英双语，按当前界面语言取用） */
 	remark?: Bilingual;
+	/**
+	 * 按钮跨列数（1–4）。缺省时按「是否多行环境 + label 显示宽度」自动推算；
+	 * 对渲染宽度与 label 宽度不匹配的条目（如 `\int f(x)\mathrm{d}x` 这类长公式、
+	 * 或 `\frac{a}{b}` 这类窄分式）用它显式指定。
+	 */
+	span?: number;
 }
 
 /** 符号分组 */

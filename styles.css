@@ -938,6 +938,13 @@ body.mathbox-resizing {
 	padding-bottom: 9px;
 }
 
+/* 积分号带上下限时纵向较高（∮/∫ 加 a、b），同样抬下限 */
+.mathbox-symbol-grid[data-group="integral"] .mathbox-symbol {
+	min-height: 52px;
+	padding-top: 6px;
+	padding-bottom: 6px;
+}
+
 /* ===== 悬停提示浮层（第一行 LaTeX 源码、第二行中/英备注） ===== */
 .mathbox-tip {
 	position: fixed;
