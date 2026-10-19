@@ -5,6 +5,9 @@
 /** 公式插入方式 */
 export type InsertMode = 'inline' | 'display';
 
+/** 导出图像的背景：白色或透明 */
+export type ExportBackground = 'white' | 'transparent';
+
 /** 界面语言设置（auto 跟随 Obsidian 界面语言） */
 export type LangSetting = 'auto' | 'zh' | 'en';
 
@@ -59,6 +62,8 @@ export interface MathBoxSettings {
 	expandMacros: boolean;
 	/** 行间公式是否紧凑（单行 $$x$$）；false 为独立成行 */
 	compactDisplay: boolean;
+	/** 导出 PNG / SVG 时的背景：白色（插入文档友好）或透明 */
+	exportBackground: ExportBackground;
 	/** 侧边栏展开状态 */
 	sidePaneOpen: boolean;
 	/** 侧边栏宽度（px），180 ~ 560 */

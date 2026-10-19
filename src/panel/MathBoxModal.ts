@@ -819,6 +819,7 @@ export class MathBoxModal extends FloatingWindow implements PanelContext {
 			latex: source,
 			display: true,
 			renderedEl: this.getRenderedElement(),
+			background: this.plugin.settings.exportBackground,
 		});
 		if (result.ok) {
 			const suffix = result.degraded ? this.t('export.degraded') : '';

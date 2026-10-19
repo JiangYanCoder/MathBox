@@ -531,12 +531,33 @@ check('hasFontFaces 判定', hasFontFaces(FONT_CSS) && !hasFontFaces('a{color:re
 
 const svgSrc = readRepo('src/exporter/svg.ts');
 check(
-	'快照导出内联字体（按已加载家族过滤）',
-	/inlineFontFaces\(collectMathJaxCss\(\),\s*loadedFontFamilies\(\)\)/.test(svgSrc),
+	'快照导出按字体集合内联（精确收集 + 加载集回退）',
+	/inlineFontFaces\(mjxCss,\s*only\)/.test(svgSrc) &&
+		/usedFamilies\.size > 0 \? usedFamilies : loadedFontFamilies\(\)/.test(svgSrc),
 );
 check('只内联 MJX 前缀且 status=loaded 的字体', /family\.startsWith\('MJX'\) && face\.status === 'loaded'/.test(svgSrc));
 check('快照导出为异步（需等待字体转码）', /export async function buildSnapshotSvg/.test(svgSrc));
 check('快照字号取容器计算值（不再硬编码 16px）', /getComputedStyle\(container\)\.fontSize/.test(svgSrc));
+
+// ---- 导出背景设置 + 体积相关契约 ----
+console.log('\n[13] 导出背景设置');
+const settingsSrc = readRepo('src/settings.ts');
+check("默认导出背景为白色", /exportBackground:\s*'white'/.test(settingsSrc));
+check(
+	'normalize 接受 transparent 并回退非法值',
+	/data\.exportBackground === 'transparent'/.test(settingsSrc) && /data\.exportBackground === 'white'/.test(settingsSrc),
+);
+check('画布底色由设置决定', /options\.background \?\? 'white'/.test(svgSrc));
+check('透明背景不绘制白底 rect', /isWhite\s*\n?\s*\?/.test(svgSrc));
+check(
+	'i18n 双语均新增导出背景设置项',
+	/settings\.exportBackground'/.test(readRepo('src/i18n/zh.ts')) &&
+		/settings\.exportBackground'/.test(readRepo('src/i18n/en.ts')),
+);
+check(
+	'只内联公式实际用到的字体，且失败回退全量',
+	/collectUsedFamilies\(clone\)/.test(svgSrc) && /inlined\.inlined === 0 && only\.size > 0/.test(svgSrc),
+);
 
 console.log(`\n结果：${failed === 0 ? '全部通过' : `${failed} 项失败`}\n`);
 process.exit(failed === 0 ? 0 : 1);

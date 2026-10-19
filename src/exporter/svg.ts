@@ -24,6 +24,7 @@ import {
 	hasFontFaces,
 	replaceSrcWithDataUri,
 } from '../core/fontFace';
+import type { ExportBackground } from '../types';
 
 export interface SvgSnapshot {
 	svg: string;
@@ -39,6 +40,11 @@ export interface InlinedCss {
 	css: string;
 	inlined: number;
 	missing: number;
+}
+
+export interface SnapshotOptions {
+	/** 画布底色：白色（插入文档友好）或透明 */
+	background?: ExportBackground;
 }
 
 /** 字体 URL → data:URI 缓存：同一次会话内多次导出零重复网络 / 转码开销 */
@@ -123,7 +129,45 @@ async function fetchAsDataUri(url: string): Promise<string | null> {
 }
 
 /**
- * 本页**实际加载过**的 MJX 字体家族。
+ * 收集**本公式实际用到**的 MJX 字体家族。
+ *
+ * `document.fonts` 里 status=loaded 的家族是「整个面板渲染过的」，通常 8 个；
+ * 而一条公式往往只用到 3–5 个。克隆体脱离文档时 `getComputedStyle` 不完整，
+ * 故临时离屏挂载一次再读（读完立即移除）。
+ *
+ * 精确过滤后，`MJX-TEX-N`（主字体，常占 160 KB 以上）之外的大多数字体
+ * 不再被无谓内联。
+ */
+function collectUsedFamilies(root: HTMLElement): Set<string> {
+	const out = new Set<string>();
+	const probe = root.cloneNode(true) as HTMLElement;
+	probe.setCssProps({
+		position: 'fixed',
+		left: '-10000px',
+		top: '0',
+		opacity: '0',
+		pointerEvents: 'none',
+		width: 'max-content',
+	});
+	document.body.appendChild(probe);
+	try {
+		const nodes: HTMLElement[] = [probe];
+		probe.querySelectorAll<HTMLElement>('*').forEach((el) => nodes.push(el));
+		for (const el of nodes) {
+			const family = getComputedStyle(el).fontFamily ?? '';
+			for (const part of family.split(',')) {
+				const name = part.trim().replace(/^["']|["']$/g, '');
+				if (name.startsWith('MJX')) out.add(name);
+			}
+		}
+	} finally {
+		probe.remove();
+	}
+	return out;
+}
+
+/**
+ * 本页**实际加载过**的 MJX 字体家族（精确收集失败时的回退）。
  *
  * 宿主样式表一次性声明全部 24 个 `MJX-TEX-*` 字体，但一个公式通常只用到 4–8 个。
  * `document.fonts` 中 status 为 `loaded` 的家族正是「渲染时按需下载过」的，
@@ -188,6 +232,7 @@ export async function inlineFontFaces(
 export async function buildSnapshotSvg(
 	container: HTMLElement,
 	padding = 14,
+	options: SnapshotOptions = {},
 ): Promise<SvgSnapshot | null> {
 	// 量取**公式本身**的尺寸。
 	// display 模式下 `mjx-container` 是块级、宽度会撑满预览区（实测 773px），
@@ -207,11 +252,28 @@ export async function buildSnapshotSvg(
 		height: `${height}px`,
 	});
 
+	// 先收集「本公式实际用到的字体家族」，再序列化（收集时会临时离屏挂载克隆体）
+	const usedFamilies = collectUsedFamilies(clone);
 	const serialized = new XMLSerializer().serializeToString(clone);
-	const { css, inlined, missing } = await inlineFontFaces(collectMathJaxCss(), loadedFontFamilies());
-	const safeCss = sanitizeCss(css);
+
+	const mjxCss = collectMathJaxCss();
+	const only = usedFamilies.size > 0 ? usedFamilies : loadedFontFamilies();
+	let inlined = await inlineFontFaces(mjxCss, only);
+	// 兜底：家族名若与 @font-face 声明不吻合，一个字都匹配不到 —— 宁可文件大，不可字形错
+	if (inlined.inlined === 0 && only.size > 0) {
+		inlined = await inlineFontFaces(mjxCss);
+	}
+
+	const safeCss = sanitizeCss(inlined.css);
 	// 字号取容器的实际计算值：面板字号可调，硬编码 16px 会与实际测量尺寸不符
 	const fontSize = getComputedStyle(container).fontSize || '16px';
+
+	// 背景：白色便于插入文档；透明则融入任意底色
+	const background = options.background ?? 'white';
+	const isWhite = background === 'white';
+	const textColor = isWhite
+		? '#000000'
+		: getComputedStyle(document.body).color || '#000000';
 
 	const totalWidth = width + padding * 2;
 	const totalHeight = height + padding * 2;
@@ -220,18 +282,20 @@ export async function buildSnapshotSvg(
 		`<svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="${totalHeight}" ` +
 		`viewBox="0 0 ${totalWidth} ${totalHeight}">` +
 		`<style>${safeCss}</style>` +
-		`<rect x="0" y="0" width="${totalWidth}" height="${totalHeight}" fill="#ffffff"/>` +
+		(isWhite
+			? `<rect x="0" y="0" width="${totalWidth}" height="${totalHeight}" fill="#ffffff"/>`
+			: '') +
 		`<foreignObject x="${padding}" y="${padding}" width="${width}" height="${height}">` +
 		`<div xmlns="http://www.w3.org/1999/xhtml" ` +
-		`style="font-size:${fontSize};line-height:normal;color:#000000;">${serialized}</div>` +
+		`style="font-size:${fontSize};line-height:normal;color:${textColor};">${serialized}</div>` +
 		`</foreignObject></svg>`;
 
 	return {
 		svg,
 		width: totalWidth,
 		height: totalHeight,
-		fontsInlined: inlined,
-		fontsMissing: missing,
+		fontsInlined: inlined.inlined,
+		fontsMissing: inlined.missing,
 	};
 }
 

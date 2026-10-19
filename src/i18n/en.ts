@@ -192,6 +192,11 @@ export const en: Record<I18nKey, string> = {
 	'settings.expandMacrosDesc': 'Rewrite physics-style commands as standard LaTeX so the formula stays portable outside Obsidian',
 	'settings.compactDisplay': 'Use compact display math',
 	'settings.compactDisplayDesc': 'On: write $$x$$ on a single line. Off: write a fenced block on its own lines.',
+	'settings.exportBackground': 'Export image background',
+	'settings.exportBackgroundDesc':
+		'Canvas background for exported PNG / SVG. White suits documents; pick transparent to blend into a dark or custom backdrop.',
+	'settings.exportBackgroundWhite': 'White',
+	'settings.exportBackgroundTransparent': 'Transparent',
 	'settings.favSection': 'Favorites',
 	'settings.favCount': '{n} favorites stored',
 	'settings.favExport': 'Export favorites',

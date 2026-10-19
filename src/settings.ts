@@ -20,7 +20,13 @@ import { defaultExtensionMap, EXTENSION_PACKAGES } from './core/extensions';
 import { downloadText, pickTextFile, timestampSuffix } from './exporter/download';
 import { FAVORITE_GROUP_PRESETS, mergeFavorites, parseImportedFavorites } from './favorites/store';
 import type MathBoxPlugin from './main';
-import type { InsertMode, LangSetting, MathBoxSettings, PanelRect } from './types';
+import type {
+	ExportBackground,
+	InsertMode,
+	LangSetting,
+	MathBoxSettings,
+	PanelRect,
+} from './types';
 import { ConfirmModal } from './panel/favoriteDialog';
 
 // ---------------------------------------------------------------- 默认值
@@ -31,6 +37,7 @@ export const DEFAULT_SETTINGS: MathBoxSettings = {
 	insertMode: 'display',
 	expandMacros: true,
 	compactDisplay: false,
+	exportBackground: 'white',
 	sidePaneOpen: true,
 	sidePaneWidth: SIDE_PANE_WIDTH,
 	splitRatio: 0.45,
@@ -85,6 +92,9 @@ export function normalizeSettings(raw: unknown): MathBoxSettings {
 	}
 	if (typeof data.expandMacros === 'boolean') settings.expandMacros = data.expandMacros;
 	if (typeof data.compactDisplay === 'boolean') settings.compactDisplay = data.compactDisplay;
+	if (data.exportBackground === 'transparent' || data.exportBackground === 'white') {
+		settings.exportBackground = data.exportBackground;
+	}
 	if (typeof data.sidePaneOpen === 'boolean') settings.sidePaneOpen = data.sidePaneOpen;
 	settings.sidePaneWidth = clampNumber(
 		toNumber(data.sidePaneWidth, SIDE_PANE_WIDTH),
@@ -183,6 +193,20 @@ export class MathBoxSettingTab extends PluginSettingTab {
 					this.plugin.settings.compactDisplay = value;
 					await this.plugin.saveSettings();
 				}),
+			);
+
+		new Setting(containerEl)
+			.setName(t('settings.exportBackground'))
+			.setDesc(t('settings.exportBackgroundDesc'))
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOption('white', t('settings.exportBackgroundWhite'))
+					.addOption('transparent', t('settings.exportBackgroundTransparent'))
+					.setValue(this.plugin.settings.exportBackground)
+					.onChange(async (value) => {
+						this.plugin.settings.exportBackground = value as ExportBackground;
+						await this.plugin.saveSettings();
+					}),
 			);
 
 		addHeading(containerEl, t('settings.extSection'));

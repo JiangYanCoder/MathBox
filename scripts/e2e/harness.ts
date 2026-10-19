@@ -1985,6 +1985,8 @@ async function main(): Promise<void> {
 		style.id = 'MJX-E2E-STYLE';
 		style.textContent =
 			'@font-face{font-family:"MJX-TEX-I";src:url("data:font/woff2;base64,AAAA")}' +
+			// 未被公式使用的家族（外部 URL 形式）：精确过滤后其 src 应保持原样、不被内联
+			'@font-face{font-family:"MJX-UNUSED";src:url("app://e2e/unused.woff2")}' +
 			'mjx-container{display:inline-block}';
 		document.head.appendChild(style);
 
@@ -2005,6 +2007,8 @@ async function main(): Promise<void> {
 		const mi = document.createElement('mjx-mi');
 		const glyph = document.createElement('mjx-c');
 		glyph.className = 'mjx-c1D465';
+		// 让 computed style 真正指向 MJX-TEX-I —— 精确字体过滤依据
+		glyph.style.fontFamily = 'MJX-TEX-I';
 		mi.appendChild(glyph);
 		math.appendChild(mi);
 		container.appendChild(math);
@@ -2029,6 +2033,34 @@ async function main(): Promise<void> {
 		// 面板样式表绝不能被收进 SVG（否则 244 条 .mathbox-* 规则污染 CHTML 度量）
 		check('SVG 不含面板样式规则（.mathbox-fake）', !(snapshot?.svg ?? '').includes('.mathbox-fake'));
 		check('非 MathJax 样式表的字体未被内联（NOISE）', !(snapshot?.svg ?? '').includes('BBBB'));
+
+		// 精确字体过滤：公式只用到 MJX-TEX-I，声明了但没用到的 MJX-UNUSED 不应被内联
+		{
+			// 诊断：模拟 collectUsedFamilies 的离屏挂载，确认 computed 能否读到家族名
+			const probe = host.cloneNode(true) as HTMLElement;
+			probe.style.cssText = 'position:fixed;left:-10000px;top:0;width:max-content';
+			document.body.appendChild(probe);
+			const probeGlyph = probe.querySelector('mjx-c');
+			const probeFamily = probeGlyph ? getComputedStyle(probeGlyph).fontFamily : '(no-node)';
+			probe.remove();
+			check('离屏克隆中仍能读到 mjx-c 的字体家族', probeFamily === 'MJX-TEX-I', probeFamily);
+		}
+		check(
+			'只内联公式实际用到的字体（未使用家族的 src 保持原样）',
+			(snapshot?.svg ?? '').includes('AAAA') && (snapshot?.svg ?? '').includes('app://e2e/unused.woff2'),
+			`AAAA=${(snapshot?.svg ?? '').includes('AAAA')} unused=${(snapshot?.svg ?? '').includes('app://e2e/unused.woff2')}`,
+		);
+
+		// 背景：白底（默认）与透明
+		check('默认白底：绘制白色 rect', (snapshot?.svg ?? '').includes('fill="#ffffff"'));
+		check('默认白底：文字为黑色', (snapshot?.svg ?? '').includes('color:#000000'));
+		const transparentSnap = await buildSnapshotSvg(host, 14, { background: 'transparent' });
+		check('透明背景：不绘制 rect', transparentSnap !== null && !transparentSnap.svg.includes('<rect'));
+		check(
+			'透明背景：画布尺寸不变',
+			transparentSnap?.width === snapshot?.width,
+			`${transparentSnap?.width} vs ${snapshot?.width}`,
+		);
 
 		if (snapshot) {
 			const png = await renderSvgToPng(snapshot, 2);

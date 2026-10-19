@@ -9,7 +9,7 @@
  */
 
 import { PNG_SCALE } from '../core/constants';
-import type { ExportFormat } from '../types';
+import type { ExportBackground, ExportFormat } from '../types';
 import { copyToClipboard, downloadBlob, downloadText, timestampSuffix } from './download';
 import { extractMathML, mathMLFromMathItems, texToMathML } from './mathjax';
 import { buildSnapshotSvg, renderSvgToPng, type SvgSnapshot } from './svg';
@@ -21,6 +21,8 @@ export interface ExportInput {
 	display: boolean;
 	/** 已渲染公式的容器（内部含 mjx-container） */
 	renderedEl: HTMLElement | null;
+	/** 图像导出底色（white / transparent），来自设置项 */
+	background?: ExportBackground;
 }
 
 export interface ExportSuccess {
@@ -82,7 +84,9 @@ export async function exportFormula(
 
 		case 'svg': {
 			if (!input.renderedEl) return { ok: false, reason: 'render' };
-			const snapshot = await buildSnapshotSvg(input.renderedEl);
+			const snapshot = await buildSnapshotSvg(input.renderedEl, 14, {
+				background: input.background,
+			});
 			if (!snapshot) return { ok: false, reason: 'render' };
 			downloadText(snapshot.svg, `${baseName()}.svg`, 'image/svg+xml');
 			await copyToClipboard(snapshot.svg);
@@ -91,7 +95,9 @@ export async function exportFormula(
 
 		case 'png': {
 			if (!input.renderedEl) return { ok: false, reason: 'render' };
-			const snapshot = await buildSnapshotSvg(input.renderedEl);
+			const snapshot = await buildSnapshotSvg(input.renderedEl, 14, {
+				background: input.background,
+			});
 			if (!snapshot) return { ok: false, reason: 'render' };
 			const blob = await renderSvgToPng(snapshot, PNG_SCALE);
 			if (!blob) return { ok: false, reason: 'noSvgOutput' };
