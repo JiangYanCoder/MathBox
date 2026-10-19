@@ -12,7 +12,7 @@ import MathBoxPlugin from '../../src/main';
 import { expandToFormula, openMathBoxPopout, openMathBoxTab } from '../../src/commands';
 import { buildSnapshotSvg, renderSvgToPng } from '../../src/exporter/svg';
 import { texToSvg } from '../../src/exporter/texSvg';
-import { App, Editor, MarkdownView, leaves, notices } from './obsidian-stub';
+import { App, Editor, MarkdownView, Menu, leaves, notices } from './obsidian-stub';
 import { MathBoxSettingTab } from '../../src/settings';
 import { EXTENSION_PACKAGES } from '../../src/core/extensions';
 import { SYMBOL_GROUPS } from '../../src/symbols';
@@ -2116,6 +2116,61 @@ async function main(): Promise<void> {
 
 		const matrix = texToSvg(String.raw`\begin{pmatrix} a_{11} & a_{12} \\ a_{21} & a_{22} \end{pmatrix}`, {});
 		check('矩阵环境可渲染（ams 包已注册）', matrix !== null && !matrix.svg.includes('merror'));
+	}
+
+	/* --------------- 14. 导出菜单：底色切换（白底 / 透明） --------------- */
+	{
+		if (!q('.mathbox-modal')) {
+			plugin.openPanel({ source: 'command', editor: null as never, prefill: 'a^2 + b^2' });
+			await sleep(60);
+		}
+		const exportBtn = document.querySelector<HTMLButtonElement>('.mathbox-modal button[aria-label="导出"]');
+		check('面板上有导出按钮', exportBtn !== null);
+
+		notices.length = 0;
+		Menu.last = null;
+		exportBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		await sleep(20);
+
+		const menu = Menu.last;
+		check('导出菜单已构建', menu !== null);
+		const bgItems = (menu?.items ?? []).filter((item) => item.checked !== null);
+		check(
+			'菜单顶部提供两条底色选项',
+			bgItems.length === 2,
+			bgItems.map((item) => item.title).join(' / '),
+		);
+		check(
+			'默认勾选白底',
+			bgItems[0]?.checked === true && bgItems[1]?.checked === false,
+			bgItems.map((item) => `${item.title}=${String(item.checked)}`).join(' '),
+		);
+
+		// 切到透明底
+		bgItems[1]?.click();
+		await sleep(30);
+		check(
+			'点选透明底后设置已写入',
+			plugin.settings.exportBackground === 'transparent',
+			String(plugin.settings.exportBackground),
+		);
+		check('切换后给出提示', notices.some((n) => n.includes('透明底')), notices.join('|'));
+
+		// 重新打开菜单，勾选态应跟随设置
+		Menu.last = null;
+		exportBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		await sleep(20);
+		const reopen = (Menu.last?.items ?? []).filter((item) => item.checked !== null);
+		check(
+			'再次打开时勾选在透明底',
+			reopen[0]?.checked === false && reopen[1]?.checked === true,
+			reopen.map((item) => `${item.title}=${String(item.checked)}`).join(' '),
+		);
+
+		// 还原为白底，避免污染后续断言
+		reopen[0]?.click();
+		await sleep(30);
+		check('可切回白底', plugin.settings.exportBackground === 'white', String(plugin.settings.exportBackground));
 	}
 
 	/* ------------------------- 输出 ------------------------- */

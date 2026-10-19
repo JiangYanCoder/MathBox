@@ -370,23 +370,51 @@ export class Modal extends Component {
 }
 
 export class MenuItem {
-	setTitle(): this {
+	title = '';
+	icon = '';
+	/** 勾选态：null 表示该条目不是勾选项 */
+	checked: boolean | null = null;
+	private clickHandler: (() => void) | null = null;
+
+	setTitle(title: string): this {
+		this.title = title;
 		return this;
 	}
-	setIcon(): this {
+	setIcon(icon: string): this {
+		this.icon = icon;
 		return this;
 	}
-	onClick(): this {
+	setChecked(checked: boolean): this {
+		this.checked = checked;
 		return this;
+	}
+	onClick(cb: () => void): this {
+		this.clickHandler = cb;
+		return this;
+	}
+	/** 测试用：模拟点击 */
+	click(): void {
+		this.clickHandler?.();
 	}
 }
 
 export class Menu {
+	/** 最近一次 showAtPosition 的菜单（e2e 借此读取条目，不必依赖真实弹出层） */
+	static last: Menu | null = null;
 	items: MenuItem[] = [];
+	separators = 0;
+
+	constructor() {
+		Menu.last = this;
+	}
 	addItem(cb: (item: MenuItem) => void): this {
 		const item = new MenuItem();
 		this.items.push(item);
 		cb(item);
+		return this;
+	}
+	addSeparator(): this {
+		this.separators += 1;
 		return this;
 	}
 	showAtPosition(): void {}

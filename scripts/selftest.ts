@@ -561,6 +561,22 @@ check(
 	/collectUsedFamilies\(clone\)/.test(svgSrc) && /inlined\.inlined === 0 && only\.size > 0/.test(svgSrc),
 );
 
+// ---- 导出菜单内的底色切换（与设置页同一项设置；modalSrc 已在前面声明）----
+check(
+	'导出菜单提供白底 / 透明底两条选项',
+	/export\.bgWhite/.test(modalSrc) && /export\.bgTransparent/.test(modalSrc),
+);
+check('勾选态取自当前设置', /setChecked\(background === option\.value\)/.test(modalSrc));
+check(
+	'切换后写回设置并落盘',
+	/settings\.exportBackground = background/.test(modalSrc) && /saveSettings\(\)/.test(modalSrc),
+);
+check(
+	'i18n 双语均提供底色切换文案',
+	/'export\.bgTransparent'/.test(readRepo('src/i18n/zh.ts')) &&
+		/'export\.bgTransparent'/.test(readRepo('src/i18n/en.ts')),
+);
+
 // ---- SVG 直出（v3.4 主路径）----
 console.log('\n[14] 图像导出：MathJax 原生 SVG 输出');
 const INTEGRAL = String.raw`\int_{-\infty}^{\infty} e^{-x^{2}}\,\mathrm{d}x = \sqrt{\pi}`;

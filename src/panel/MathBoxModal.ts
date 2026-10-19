@@ -54,6 +54,7 @@ import {
 import type { Translator } from '../i18n';
 import type MathBoxPlugin from '../main';
 import type {
+	ExportBackground,
 	ExportFormat,
 	FavoriteItem,
 	FormulaStyle,
@@ -794,6 +795,25 @@ export class MathBoxModal extends FloatingWindow implements PanelContext {
 
 	openExportMenu(anchor: HTMLElement): void {
 		const menu = new Menu();
+
+		// 底色切换就地提供：图像格式（SVG / PNG）的底色最容易「导出后才发现不合适」，
+		// 让用户不必跳到设置页去找。两条互斥勾选，选中即写回设置（与设置页同一项）。
+		const background = this.plugin.settings.exportBackground;
+		for (const option of [
+			{ value: 'white' as ExportBackground, label: this.t('export.bgWhite') },
+			{ value: 'transparent' as ExportBackground, label: this.t('export.bgTransparent') },
+		]) {
+			menu.addItem((item) =>
+				item
+					.setTitle(option.label)
+					.setChecked(background === option.value)
+					.onClick(() => {
+						void this.setExportBackground(option.value);
+					}),
+			);
+		}
+		menu.addSeparator();
+
 		for (const format of EXPORT_FORMATS) {
 			menu.addItem((item) => {
 				item.setTitle(this.t(`export.${format}`))
@@ -806,6 +826,18 @@ export class MathBoxModal extends FloatingWindow implements PanelContext {
 		const rect = anchor.getBoundingClientRect();
 		const position: MenuPositionDef = { x: rect.left, y: rect.bottom + 4 };
 		menu.showAtPosition(position);
+	}
+
+	/** 切换导出底色（与设置页的「导出图像背景」是同一项设置） */
+	private async setExportBackground(background: ExportBackground): Promise<void> {
+		if (this.plugin.settings.exportBackground === background) return;
+		this.plugin.settings.exportBackground = background;
+		await this.plugin.saveSettings();
+		this.notify(
+			this.t('export.bgSwitched', {
+				name: this.t(background === 'white' ? 'export.bgWhite' : 'export.bgTransparent'),
+			}),
+		);
 	}
 
 	private async runExport(format: ExportFormat): Promise<void> {
