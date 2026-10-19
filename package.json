@@ -1,6 +1,6 @@
 {
 	"name": "mathbox",
-	"version": "3.3.0",
+	"version": "3.4.0",
 	"description": "A visual LaTeX formula editor for Obsidian: live preview, symbol palette, templates, favorites, and multi-format export.",
 	"main": "main.js",
 	"type": "module",
