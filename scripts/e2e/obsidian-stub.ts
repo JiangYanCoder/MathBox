@@ -103,16 +103,99 @@ export class MarkdownView {
 	editor = { getSelection: () => '', replaceSelection: () => {} };
 }
 
+export interface EditorPosition {
+	line: number;
+	ch: number;
+}
+
+export interface EditorSelection {
+	anchor: EditorPosition;
+	head: EditorPosition;
+}
+
+/**
+ * 编辑器替身。
+ *
+ * 前两个参数保持旧语义：`selection` 既是"选中的文本"也是"整篇文档"。
+ * 第三个参数 `docContent` 用于需要**非全选**的场景（如右键编辑已有公式时
+ * 选区只覆盖公式内容、`$` 在选区外），此时选区在该文档中按 indexOf 定位。
+ *
+ * 默认（不传 docContent）等价于"文档 = selection、全文选中"，
+ * `getSelection()` 与 `replaceSelection()` 的行为与旧实现完全一致。
+ */
 export class Editor {
+	private readonly onReplace: (text: string) => void;
+	private readonly docText: string;
+	private selFrom = 0;
+	private selTo = 0;
+
 	constructor(
-		private readonly onReplace: (text: string) => void,
-		private readonly selection = '',
-	) {}
+		onReplace: (text: string) => void,
+		selection = '',
+		docContent?: string,
+	) {
+		this.onReplace = onReplace;
+		this.docText = docContent ?? selection;
+		if (docContent === undefined) {
+			this.selFrom = 0;
+			this.selTo = selection.length;
+		} else {
+			const at = docContent.indexOf(selection);
+			this.selFrom = at < 0 ? 0 : at;
+			this.selTo = this.selFrom + selection.length;
+		}
+	}
+
 	getSelection(): string {
-		return this.selection;
+		return this.docText.slice(this.selFrom, this.selTo);
 	}
 	replaceSelection(text: string): void {
 		this.onReplace(text);
+	}
+
+	// ---- 以下供 commands.expandToFormula 使用（选区扩展）----
+
+	getValue(): string {
+		return this.docText;
+	}
+
+	listSelections(): EditorSelection[] {
+		return [{ anchor: this.offsetToPos(this.selFrom), head: this.offsetToPos(this.selTo) }];
+	}
+
+	setSelection(anchor: EditorPosition, head: EditorPosition): void {
+		const a = this.posToOffset(anchor);
+		const b = this.posToOffset(head);
+		this.selFrom = Math.min(a, b);
+		this.selTo = Math.max(a, b);
+	}
+
+	posToOffset(pos: EditorPosition): number {
+		const lines = this.docText.split('\n');
+		let offset = 0;
+		for (let i = 0; i < pos.line && i < lines.length; i += 1) {
+			offset += (lines[i] ?? '').length + 1;
+		}
+		return Math.min(this.docText.length, offset + Math.max(0, pos.ch));
+	}
+
+	offsetToPos(offset: number): EditorPosition {
+		const clamped = Math.max(0, Math.min(offset, this.docText.length));
+		const lines = this.docText.split('\n');
+		let remaining = clamped;
+		for (let i = 0; i < lines.length; i += 1) {
+			const len = (lines[i] ?? '').length;
+			if (remaining <= len) return { line: i, ch: remaining };
+			remaining -= len + 1;
+		}
+		const last = lines[lines.length - 1] ?? '';
+		return { line: Math.max(0, lines.length - 1), ch: last.length };
+	}
+
+	getRange(from: EditorPosition, to: EditorPosition): string {
+		const a = this.posToOffset(from);
+		const b = this.posToOffset(to);
+		return this.docText.slice(Math.min(a, b), Math.max(a, b));
 	}
 }
 

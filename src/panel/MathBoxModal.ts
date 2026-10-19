@@ -37,7 +37,7 @@ import {
 import { createDebounce, type Debounced } from '../core/debounce';
 import { buildInsertText, splitCursor } from '../core/insert';
 import { expandMacros, countExpandableMacros } from '../core/macros';
-import { applyEnvironment, looksLikeLatex } from '../core/latex';
+import { applyEnvironment, looksLikeLatex, stripDelimiters } from '../core/latex';
 import { detectStyle } from '../core/wrap';
 import { exportFormula } from '../exporter';
 import {
@@ -225,8 +225,12 @@ export class MathBoxModal extends FloatingWindow implements PanelContext {
 
 		this.registerHotkeys();
 
-		// 预填：右键唤起且选区形似 LaTeX
-		const prefill = this.options.prefill?.trim();
+		// 预填：右键唤起且选区形似 LaTeX。
+		//
+		// 选区**通常连定界符一起被选中**（双击一个 $x$ 公式即如此），故先剥掉
+		// `$ / $$ / \( \[` 再预填。否则源码区带着 $，插入时 buildInsertText
+		// 又包一层 → 结果 `$$x$$`（用户反馈的「重复插入 $」）。
+		const prefill = stripDelimiters(this.options.prefill ?? '');
 		if (prefill) {
 			this.source = prefill;
 			this.sourceSection.setValue(prefill, prefill.length);
@@ -878,7 +882,9 @@ export class MathBoxModal extends FloatingWindow implements PanelContext {
 			return;
 		}
 
-		let latex = source;
+		// 源码区可能整体带定界符（用户手动粘进完整公式、或旧版本残留的预填内容）。
+		// 再包一层会得到 `$$x$$` —— 剥掉首尾成对的定界符后再按所选模式统一包裹。
+		let latex = stripDelimiters(source);
 		let expanded = 0;
 		if (this.plugin.settings.expandMacros) {
 			expanded = countExpandableMacros(source);

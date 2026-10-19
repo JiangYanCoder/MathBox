@@ -9,7 +9,7 @@
  */
 
 import MathBoxPlugin from '../../src/main';
-import { openMathBoxPopout, openMathBoxTab } from '../../src/commands';
+import { expandToFormula, openMathBoxPopout, openMathBoxTab } from '../../src/commands';
 import { App, Editor, MarkdownView, leaves, notices } from './obsidian-stub';
 import { MathBoxSettingTab } from '../../src/settings';
 import { EXTENSION_PACKAGES } from '../../src/core/extensions';
@@ -1930,6 +1930,51 @@ async function main(): Promise<void> {
 	const popoutLeaf = leaves.find((l) => l.popout && l.state?.type === 'mathbox-view');
 	popoutLeaf?.detach();
 	await sleep(10);
+
+	/* --------------- 11. 编辑已有公式：重复 $ 定界符修复 --------------- */
+
+	// ① 选区紧贴定界符时扩展（否则插入会重新包一层 $，与外围残留的叠成 $$…$$）
+	{
+		const single = new Editor(() => undefined, 'x^{2}', 'a $x^{2}$ b');
+		expandToFormula(single);
+		check('选区扩展：识别 $ 定界符', single.getSelection() === '$x^{2}$', single.getSelection());
+
+		const double = new Editor(() => undefined, 'x^{2}', 'a $$x^{2}$$ b');
+		expandToFormula(double);
+		check('选区扩展：识别 $$ 定界符', double.getSelection() === '$$x^{2}$$', double.getSelection());
+
+		const plain = new Editor(() => undefined, 'x^{2}', 'a x^{2} b');
+		expandToFormula(plain);
+		check('选区扩展：无定界符不动选区', plain.getSelection() === 'x^{2}', plain.getSelection());
+
+		const already = new Editor(() => undefined, '$x^{2}$', 'a $x^{2}$ b');
+		expandToFormula(already);
+		check('选区扩展：已含定界符不动选区', already.getSelection() === '$x^{2}$', already.getSelection());
+	}
+
+	// ② 端到端：带定界符的预填被剥掉，插入只包一层（原先会变成 $$…$$）
+	{
+		replaced.length = 0;
+		plugin.openPanel({
+			source: 'command',
+			editor: editor as never,
+			prefill: '$a^2 + b^2 = c^2$',
+		});
+		await sleep(60);
+		const ta = q<HTMLTextAreaElement>('textarea.mathbox-textarea');
+		check('预填剥掉 $ 定界符', (ta?.value ?? '') === 'a^2 + b^2 = c^2', ta?.value ?? '(none)');
+
+		qAll<HTMLElement>('.mathbox-option-right .mathbox-action')[0]?.dispatchEvent(
+			new MouseEvent('click', { bubbles: true }),
+		);
+		await sleep(20);
+		check(
+			'带定界符的预填 → 插入只包一层 $',
+			replaced[0] === '$a^2 + b^2 = c^2$',
+			JSON.stringify(replaced[0]),
+		);
+		check('插入后面板自动关闭', q('.mathbox-modal') === null);
+	}
 
 	/* ------------------------- 输出 ------------------------- */
 

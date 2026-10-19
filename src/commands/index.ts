@@ -2,7 +2,7 @@
  * 三入口注册（ribbon / 编辑器右键菜单 / 命令 + 快捷键）
  */
 
-import { Editor, MarkdownFileInfo, MarkdownView, Platform } from 'obsidian';
+import { Editor, MarkdownFileInfo, MarkdownView, Platform, type EditorPosition } from 'obsidian';
 import { resolvePrefill } from '../panel/MathBoxModal';
 import { MATHBOX_VIEW_TYPE } from '../panel/MathBoxView';
 import type MathBoxPlugin from '../main';
@@ -18,6 +18,60 @@ import type MathBoxPlugin from '../main';
  */
 function isPopoutSupported(): boolean {
 	return Platform.isDesktopApp;
+}
+
+/** 位置比较：`EditorPosition` 是 `{line, ch}` 对象，不能直接用关系运算符 */
+function isBefore(a: EditorPosition, b: EditorPosition): boolean {
+	return a.line < b.line || (a.line === b.line && a.ch <= b.ch);
+}
+
+/**
+ * 把**紧贴定界符**的选区扩展到完整公式（含 `$` / `$$`）。
+ *
+ * 右键编辑已有公式有两种选区姿势：
+ *  1. 选区**含**定界符（双击公式即如此）→ 预填路径会剥掉，无需处理；
+ *  2. 选区只覆盖公式内容、`$` 留在选区外 → 预填没问题，但插入会重新包一层 `$`，
+ *     与外围残留的一对叠成 `$$x$$`。此函数把选区扩到定界符，插入时整块替换。
+ *
+ * 保守策略：选区已含定界符、多选区、或两侧定界符不成对时**一律不动**。
+ * `\$` 表示转义的字面美元，不算定界符。
+ */
+export function expandToFormula(editor: Editor): void {
+	const sel = editor.getSelection().trim();
+	if (!sel) return;
+	// 已含定界符：交给 resolvePrefill / 预填剥离处理
+	if (sel.startsWith('$') || sel.startsWith('\\(') || sel.startsWith('\\[')) return;
+
+	const ranges = editor.listSelections();
+	if (ranges.length !== 1) return;
+	const range = ranges[0];
+	if (!range) return;
+
+	const from = editor.posToOffset(isBefore(range.anchor, range.head) ? range.anchor : range.head);
+	const to = editor.posToOffset(isBefore(range.anchor, range.head) ? range.head : range.anchor);
+
+	let before = '';
+	let after = '';
+	try {
+		before = editor.getRange(editor.offsetToPos(Math.max(0, from - 3)), editor.offsetToPos(from));
+		after = editor.getRange(editor.offsetToPos(to), editor.offsetToPos(to + 3));
+	} catch {
+		// 文档边界处 offsetToPos 可能越界 —— 读不到上下文就保守不动
+		return;
+	}
+
+	const lead = before.endsWith('$$')
+		? '$$'
+		: before.endsWith('$') && !before.endsWith('\\$')
+			? '$'
+			: '';
+	const tail = after.startsWith('$$') ? '$$' : after.startsWith('$') ? '$' : '';
+	if (!lead || lead !== tail) return;
+
+	editor.setSelection(
+		editor.offsetToPos(from - lead.length),
+		editor.offsetToPos(to + tail.length),
+	);
 }
 
 /**
@@ -63,6 +117,8 @@ export function registerCommands(plugin: MathBoxPlugin): void {
 						.setTitle(plugin.t('command.insertWithMathBox'))
 						.setIcon('sigma')
 						.onClick(() => {
+							// 先扩展选区（选区不含 $ 但紧贴 $ 时），再取预填文本
+							expandToFormula(editor);
 							plugin.openPanel({
 								source: 'menu',
 								editor,
@@ -81,6 +137,7 @@ export function registerCommands(plugin: MathBoxPlugin): void {
 		name: plugin.t('command.openPanel'),
 		hotkeys: [{ modifiers: ['Mod'], key: 'M' }],
 		editorCallback: (editor: Editor) => {
+			expandToFormula(editor);
 			plugin.openPanel({
 				source: 'command',
 				editor,

@@ -460,5 +460,20 @@ check(
 	allSymbols.every((i) => i.span === undefined || (i.span >= 1 && i.span <= 4)),
 );
 
+// ---- 编辑已有公式时不得重复包裹定界符（2026-10-19 修复）----
+// 右键双击公式会把 $ / $$ 一起选中：预填若不剥，插入时再包一层 → $$x$$ 重复
+const modalSrc = readRepo('src/panel/MathBoxModal.ts');
+const commandSrc = readRepo('src/commands/index.ts');
+check(
+	'预填前剥定界符（stripDelimiters 作用于 prefill）',
+	/stripDelimiters\(this\.options\.prefill/.test(modalSrc),
+);
+check('插入前防御性剥定界符（源码区残留 $…$ 时）', /let latex = stripDelimiters\(source\)/.test(modalSrc));
+check(
+	'两个入口都先把选区扩展到定界符（右键菜单 + 快捷键）',
+	(commandSrc.match(/expandToFormula\(editor\)/g) ?? []).length === 2,
+	String((commandSrc.match(/expandToFormula\(editor\)/g) ?? []).length),
+);
+
 console.log(`\n结果：${failed === 0 ? '全部通过' : `${failed} 项失败`}\n`);
 process.exit(failed === 0 ? 0 : 1);
