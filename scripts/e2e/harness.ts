@@ -10,6 +10,7 @@
 
 import MathBoxPlugin from '../../src/main';
 import { expandToFormula, openMathBoxPopout, openMathBoxTab } from '../../src/commands';
+import { buildSnapshotSvg, renderSvgToPng } from '../../src/exporter/svg';
 import { App, Editor, MarkdownView, leaves, notices } from './obsidian-stub';
 import { MathBoxSettingTab } from '../../src/settings';
 import { EXTENSION_PACKAGES } from '../../src/core/extensions';
@@ -1974,6 +1975,51 @@ async function main(): Promise<void> {
 			JSON.stringify(replaced[0]),
 		);
 		check('插入后面板自动关闭', q('.mathbox-modal') === null);
+	}
+
+	/* --------------- 12. 图像导出：字体内联与快照生成 --------------- */
+	{
+		// 造一个 CHTML 结构 + 模拟 MathJax 样式表。
+		// 字体地址用 data:URI，便于在无网络的无头环境中验证「内联后 SVG 里确实是 data:URI」。
+		const style = document.createElement('style');
+		style.id = 'MJX-E2E-STYLE';
+		style.textContent =
+			'@font-face{font-family:"MJX-TEX-I";src:url("data:font/woff2;base64,AAAA")}' +
+			'mjx-container{display:inline-block}';
+		document.head.appendChild(style);
+
+		const host = document.createElement('div');
+		// 明确给宽高：mjx-c 是空的字形节点，不给尺寸 measure() 会得到 0 → 快照返回 null
+		host.style.cssText = 'font-size:20px;display:inline-block;width:120px;height:36px';
+		const container = document.createElement('mjx-container');
+		const math = document.createElement('mjx-math');
+		const mi = document.createElement('mjx-mi');
+		const glyph = document.createElement('mjx-c');
+		glyph.className = 'mjx-c1D465';
+		mi.appendChild(glyph);
+		math.appendChild(mi);
+		container.appendChild(math);
+		host.appendChild(container);
+		document.body.appendChild(host);
+		await sleep(20);
+
+		const snapshot = await buildSnapshotSvg(host);
+		check('快照 SVG 已生成', snapshot !== null);
+		check('快照包含 foreignObject 容器', (snapshot?.svg ?? '').includes('<foreignObject'));
+		check('快照内联了 data:URI 字体', (snapshot?.svg ?? '').includes('data:font/woff2;base64,AAAA'));
+		check('字体内联计数 = 1', snapshot?.fontsInlined === 1, String(snapshot?.fontsInlined ?? -1));
+		check('无缺失字体', snapshot?.fontsMissing === 0, String(snapshot?.fontsMissing ?? -1));
+		check('字号取自容器计算值（20px）', (snapshot?.svg ?? '').includes('font-size:20px'));
+
+		if (snapshot) {
+			const png = await renderSvgToPng(snapshot, 2);
+			check('PNG 光栅化成功且非空', png !== null && png.size > 0, String(png?.size ?? 0));
+		} else {
+			check('PNG 光栅化成功且非空', false, '无快照');
+		}
+
+		host.remove();
+		style.remove();
 	}
 
 	/* ------------------------- 输出 ------------------------- */

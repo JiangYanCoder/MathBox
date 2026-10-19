@@ -18,6 +18,7 @@ interface Patched extends HTMLElement {
 	addClass(cls: string): void;
 	removeClass(cls: string): void;
 	setText(text: string): void;
+	setCssProps(props: Record<string, string>): void;
 	instanceOf(ctor: unknown): boolean;
 }
 
@@ -49,6 +50,13 @@ function patch(proto: HTMLElement): void {
 	};
 	p['setText'] = function (this: HTMLElement, text: string) {
 		this.textContent = text;
+	};
+	// Obsidian 的 setCssProps：camelCase 键转 kebab-case 后写入 style（`--var` 原样保留）
+	p['setCssProps'] = function (this: HTMLElement, props: Record<string, string>) {
+		for (const [key, value] of Object.entries(props)) {
+			const cssKey = key.startsWith('--') ? key : key.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
+			this.style.setProperty(cssKey, String(value));
+		}
 	};
 	p['instanceOf'] = function (this: HTMLElement, ctor: unknown) {
 		return this instanceof (ctor as new () => unknown);

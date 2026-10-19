@@ -11,6 +11,13 @@ import { buildInjectionPlan, EXTENSION_PACKAGES, defaultExtensionMap } from '../
 import { SYMBOL_GROUPS } from '../src/symbols';
 import { TEMPLATE_GROUPS } from '../src/templates';
 import { CURSOR } from '../src/core/constants';
+import {
+	applyFontFaces,
+	extractFontFaces,
+	fontFamilyOf,
+	hasFontFaces,
+	replaceSrcWithDataUri,
+} from '../src/core/fontFace';
 import { SYMBOL_CHTML, SYMBOL_CHAR_CSS, SYMBOL_RENDER_FALLBACKS } from '../src/symbols/rendered.generated';
 
 let failed = 0;
@@ -474,6 +481,62 @@ check(
 	(commandSrc.match(/expandToFormula\(editor\)/g) ?? []).length === 2,
 	String((commandSrc.match(/expandToFormula\(editor\)/g) ?? []).length),
 );
+
+// ---- 图像导出：字体必须内联（SVG-as-image 不加载外部资源）----
+console.log('\n[12] 图像导出的字体内联');
+const FONT_CSS = [
+	'@font-face{font-family:"MJX-TEX-I";src:url("app://obsidian.md/lib/mathjax/tex-font/chtml/woff2/mjx-tex-i.woff2") format("woff2")}',
+	'@font-face { font-family: MJX-TEX-N; src: url(app://x/mjx-tex-n.woff2); }',
+	'mjx-container{display:inline-block}',
+].join('\n');
+// MathJax 的真实写法：`{` 前带编号注释（宿主与 mathjax-full 均如此）
+const ANNOTATED_CSS =
+	'@font-face /* 0 */ {\n  font-family: MJXZERO;\n  src: url(\'woff2/MathJax_Zero.woff\') format(\'woff\');\n}\n' +
+	'@font-face /* 1 */ {\n  font-family: MJXTEX;\n  src: url(\'woff2/MathJax_Main-Regular.woff\') format(\'woff\');\n}';
+
+const faces = extractFontFaces(FONT_CSS);
+check(`解析出 2 个 @font-face（实际 ${faces.length}）`, faces.length === 2, String(faces.length));
+check('提取 url（带引号）', faces[0]?.url?.endsWith('mjx-tex-i.woff2') === true, faces[0]?.url ?? '(none)');
+check('提取 url（无引号）', faces[1]?.url === 'app://x/mjx-tex-n.woff2', faces[1]?.url ?? '(none)');
+check('无 @font-face 的样式表返回空', extractFontFaces('mjx-container{display:block}').length === 0);
+
+const annotated = extractFontFaces(ANNOTATED_CSS);
+check(
+	`识别带编号注释的 @font-face（MathJax 真实写法，${annotated.length} 个）`,
+	annotated.length === 2,
+	String(annotated.length),
+);
+check(
+	'注释写法下仍能取到家族名与字体地址',
+	annotated[0]?.url === 'woff2/MathJax_Zero.woff' && fontFamilyOf(annotated[0]?.body ?? '') === 'MJXZERO',
+	`${annotated[0]?.url ?? '(none)'} / ${fontFamilyOf(annotated[0]?.body ?? '')}`,
+);
+
+const firstBody = faces[0]?.body ?? '';
+const rewrittenBody = replaceSrcWithDataUri(firstBody, 'data:font/woff2;base64,AA==');
+check(
+	'src 被替换为 data:URI 且不残留原地址',
+	rewrittenBody.includes('url(data:font/woff2;base64,AA==)') && !rewrittenBody.includes('app://'),
+	rewrittenBody,
+);
+const patched = applyFontFaces(
+	FONT_CSS,
+	new Map([[faces[0]?.block ?? '', `@font-face {${rewrittenBody}}`]]),
+);
+check(
+	'改写只影响目标块，其余 @font-face 保留',
+	patched.includes('data:font/woff2;base64,AA==') && patched.includes('mjx-tex-n.woff2'),
+);
+check('hasFontFaces 判定', hasFontFaces(FONT_CSS) && !hasFontFaces('a{color:red}'));
+
+const svgSrc = readRepo('src/exporter/svg.ts');
+check(
+	'快照导出内联字体（按已加载家族过滤）',
+	/inlineFontFaces\(collectMathJaxCss\(\),\s*loadedFontFamilies\(\)\)/.test(svgSrc),
+);
+check('只内联 MJX 前缀且 status=loaded 的字体', /family\.startsWith\('MJX'\) && face\.status === 'loaded'/.test(svgSrc));
+check('快照导出为异步（需等待字体转码）', /export async function buildSnapshotSvg/.test(svgSrc));
+check('快照字号取容器计算值（不再硬编码 16px）', /getComputedStyle\(container\)\.fontSize/.test(svgSrc));
 
 console.log(`\n结果：${failed === 0 ? '全部通过' : `${failed} 项失败`}\n`);
 process.exit(failed === 0 ? 0 : 1);

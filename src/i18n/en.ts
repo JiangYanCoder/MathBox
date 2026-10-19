@@ -85,7 +85,7 @@ export const en: Record<I18nKey, string> = {
 	'export.pngDesc': 'Download at 3x resolution',
 	'export.empty': 'Type a formula before exporting',
 	'export.done': 'Exported: {format}',
-	'export.degraded': ' (degraded snapshot: the host bundles no SVG output component, glyphs fall back to system fonts)',
+	'export.degraded': ' (fonts could not be embedded; glyphs may fall back to system fonts)',
 	'export.failed': 'Export failed: {reason}',
 	'export.reason.noMathJax': 'the host MathJax instance is unreachable',
 	'export.reason.noSvgOutput': 'the host does not bundle the SVG output component',

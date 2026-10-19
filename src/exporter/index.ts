@@ -11,8 +11,8 @@
 import { PNG_SCALE } from '../core/constants';
 import type { ExportFormat } from '../types';
 import { copyToClipboard, downloadBlob, downloadText, timestampSuffix } from './download';
-import { extractMathML, hasSvgOutput, mathMLFromMathItems, texToMathML } from './mathjax';
-import { buildSnapshotSvg, renderSvgToPng } from './svg';
+import { extractMathML, mathMLFromMathItems, texToMathML } from './mathjax';
+import { buildSnapshotSvg, renderSvgToPng, type SvgSnapshot } from './svg';
 
 export type ExportFailReason = 'noMathJax' | 'noSvgOutput' | 'render' | 'unknown';
 
@@ -49,6 +49,17 @@ function resolveMathML(input: ExportInput): string | null {
 	);
 }
 
+/**
+ * 图像导出是否仍是「降级」的。
+ *
+ * v3.3 起快照会把 CHTML 的 `@font-face` 转成 data:URI 内联进 SVG，
+ * 字形与笔记内一致；只有**字体没能内联**（fetch 失败 / 样式表里本就没有字体）
+ * 时才回退系统字体，此时才需要提示用户。
+ */
+function isDegraded(snapshot: SvgSnapshot): boolean {
+	return snapshot.fontsMissing > 0 || snapshot.fontsInlined === 0;
+}
+
 export async function exportFormula(
 	format: ExportFormat,
 	input: ExportInput,
@@ -71,21 +82,21 @@ export async function exportFormula(
 
 		case 'svg': {
 			if (!input.renderedEl) return { ok: false, reason: 'render' };
-			const snapshot = buildSnapshotSvg(input.renderedEl);
+			const snapshot = await buildSnapshotSvg(input.renderedEl);
 			if (!snapshot) return { ok: false, reason: 'render' };
 			downloadText(snapshot.svg, `${baseName()}.svg`, 'image/svg+xml');
 			await copyToClipboard(snapshot.svg);
-			return { ok: true, degraded: !hasSvgOutput() };
+			return { ok: true, degraded: isDegraded(snapshot) };
 		}
 
 		case 'png': {
 			if (!input.renderedEl) return { ok: false, reason: 'render' };
-			const snapshot = buildSnapshotSvg(input.renderedEl);
+			const snapshot = await buildSnapshotSvg(input.renderedEl);
 			if (!snapshot) return { ok: false, reason: 'render' };
 			const blob = await renderSvgToPng(snapshot, PNG_SCALE);
 			if (!blob) return { ok: false, reason: 'noSvgOutput' };
 			downloadBlob(blob, `${baseName()}.png`);
-			return { ok: true, degraded: !hasSvgOutput() };
+			return { ok: true, degraded: isDegraded(snapshot) };
 		}
 
 		default:

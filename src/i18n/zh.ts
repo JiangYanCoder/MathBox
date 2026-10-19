@@ -86,7 +86,7 @@ export const zh = {
 	'export.pngDesc': '3 倍分辨率下载 .png',
 	'export.empty': '请先输入公式再导出',
 	'export.done': '已导出：{format}',
-	'export.degraded': '（降级快照：宿主未打包 SVG 输出组件，字形回退系统字体）',
+	'export.degraded': '（字体未能内联，字形可能回退系统字体）',
 	'export.failed': '导出失败：{reason}',
 	'export.reason.noMathJax': '未能访问宿主 MathJax 实例',
 	'export.reason.noSvgOutput': '宿主未打包 SVG 输出组件',
