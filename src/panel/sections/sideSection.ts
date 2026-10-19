@@ -134,13 +134,22 @@ export function createSideSection(
 	// ------------------------------------------------------------------ 滚动联动
 
 	/**
-	 * 分组标题在滚动容器内的布局偏移。
-	 * 用 offsetTop 而非 getBoundingClientRect：分组标题是 sticky 的，
-	 * 滚动到它上方时 rect 会被“钉”在容器顶部而失真（导致往回跳转失效）。
-	 * 容器 .mathbox-side-body 设为 position:relative，使其成为 offsetParent。
+	 * 分组标题的布局位置（相对滚动容器内容顶部）。
+	 *
+	 * ⚠️ **不能直接用 sticky 元素的 offsetTop**：分组标题是 `position: sticky; top: 0`，
+	 * Chromium 对 sticky 元素返回的 `offsetTop` 是「吸附后的视觉位置」而非布局位置 ——
+	 * 滚动到列表下半部分时，所有标题的 offsetTop 会变成同一个值（实测三个不同标题
+	 * 全是 1868），于是下拉跳转「点了完全不动」、滚动联动也认错分组（2026-10-20 实测）。
+	 * `getBoundingClientRect` 同理（注释里早就记了「sticky 标题下 rect 会失真」）。
+	 *
+	 * 故改用**紧随其后的内容容器**（grid / 列表 / 卡片组，均为普通流内元素）定位，
+	 * 再减去标题高度还原标题顶部。三类页面（符号 / 模板 / 收藏）都是「标题 + 内容容器」
+	 * 相邻的结构，故此规则通用。
 	 */
-	function offsetOf(target: HTMLElement): number {
-		return target.offsetTop;
+	function offsetOf(head: HTMLElement): number {
+		const next = head.nextElementSibling as HTMLElement | null;
+		if (next) return next.offsetTop - head.offsetHeight;
+		return head.offsetTop;
 	}
 
 	function clearSpy(): void {
@@ -175,13 +184,31 @@ export function createSideSection(
 		});
 	}
 
-	/** 滚动容器平滑滚到目标分组（不支持 scrollTo 选项时退化为直接置位） */
+	/**
+	 * 滚动容器滚到目标分组。
+	 *
+	 * **不能用 `behavior: 'smooth'`**：在合成层容器（面板本身有 transform 动画）与
+	 * 无头浏览器里，Chromium 对「非文档根滚动容器」的平滑滚动会静默失效 ——
+	 * 调用后 `scrollTop` 恒为 0，用户观感就是「点了下拉没反应」（2026-10-20 实测）。
+	 * 连「先 smooth、超时再兜底置位」的写法也不可靠（定时器里的二次置位会被
+	 * 滚动锚定与懒渲染引起的高度变化带偏），故这里直接置位：
+	 * 跳转本就该立刻到位，长列表里反而比平滑滚动更快。
+	 */
 	function scrollToAnchor(anchor: HTMLElement | undefined): void {
 		if (!anchor) return;
-		const top = Math.max(0, offsetOf(anchor) - 2);
-		// 平滑滚动期间抑制联动，落位后由 pick() 设定的分组保持为当前分组
-		spyHoldUntil = Date.now() + 700;
-		body.scrollTo({ top, behavior: 'smooth' });
+
+		const apply = (): void => {
+			body.scrollTop = Math.max(0, offsetOf(anchor) - 2);
+		};
+
+		// 置位会触发一次 scroll 事件；抑制联动让按钮文案稳定在用户点选的分组上。
+		// 留足窗口覆盖下面两次校正（落位后 spy 自然算出同一组）
+		spyHoldUntil = Date.now() + 520;
+		apply();
+		// 首次置位时，视口内那一屏按钮可能还是占位文本；懒渲染把行高撑开
+		// （如连分数按钮）会让目标分组偏移 —— 首帧后与 220ms 各校正一次
+		window.requestAnimationFrame(apply);
+		window.setTimeout(apply, 220);
 	}
 
 	// ------------------------------------------------------------------ 内容体

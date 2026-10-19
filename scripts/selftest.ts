@@ -333,6 +333,16 @@ const sideSrc = readRepo('src/panel/sections/sideSection.ts');
 check('模板条目挂公式容器', /mountFormula\(btn,\s*item\.latex/.test(sideSrc));
 check('收藏条目挂公式容器', /mountFormula\(main,\s*item\.latex/.test(sideSrc));
 check('模板与收藏列表重建后均触发渲染', (sideSrc.match(/renderFormulaIn\(sections\)/g) ?? []).length === 2);
+
+// ---- 侧边栏分组跳转（2026-10-20 修复：sticky 标题的 offsetTop 会随滚动失真）----
+check(
+	'分组锚点不依赖 sticky 标题的 offsetTop（改用后继内容容器）',
+	/nextElementSibling/.test(sideSrc) && /next\.offsetTop - head\.offsetHeight/.test(sideSrc),
+);
+check(
+	'跳转用即时置位，不用 smooth（合成层容器里 smooth 会静默失效）',
+	!/scrollTo\(\{[^}]*behavior:\s*'smooth'/.test(sideSrc) && /body\.scrollTop =/.test(sideSrc),
+);
 // ---------------------------------------------------------------- 快捷工具面板渲染化（2026-10-18）
 check('快捷工具按钮挂公式容器（宿主 renderMath）', /mountSymbolMath\(btn,\s*display,\s*item\.label\)/.test(sideSrc));
 check('快捷工具走懒渲染（首屏若干条 + 视口触发）', /renderSymbolsLazy\(body\)/.test(sideSrc));

@@ -330,10 +330,63 @@ async function main(): Promise<void> {
 	await sleep(30);
 	check('点选后按钮切到第 5 个分组', q('.mathbox-gselect-label')?.textContent === SYMBOL_GROUPS[4]?.name.zh, q('.mathbox-gselect-label')?.textContent ?? '(none)');
 	check('点选后下拉列表已收起', !q('.mathbox-gselect-dropdown'));
-	check(
-		'点选只是跳转，全部分组仍在内容区',
-		qAll('.mathbox-side-body .mathbox-side-group').length === SYMBOL_GROUPS.length,
-	);
+	// ---- 跳转必须真的滚动（回归：smooth 在合成层容器里会静默失效）----
+	await sleep(320);
+	{
+		const sb = q<HTMLElement>('.mathbox-side-body');
+		const heads = qAll<HTMLElement>('.mathbox-side-body .mathbox-side-group');
+		// 用「标题相对滚动容器顶部的距离」判断 —— 懒渲染会让 offsetTop 小幅漂移，
+		// 视觉位置才是用户真正感知的东西
+		const relTop =
+			heads[4] !== undefined && sb !== null
+				? Math.round(heads[4].getBoundingClientRect().top - sb.getBoundingClientRect().top)
+				: -999;
+		check(
+			'点选后目标分组标题贴到容器顶部',
+			sb !== null && sb.scrollTop > 0 && Math.abs(relTop) <= 12,
+			`scrollTop=${sb?.scrollTop} relTop=${relTop}`,
+		);
+
+		// 跳到最后一个分组：目标 offsetTop 可能超过可滚上限，按 clamp 后的位置比对
+		symSelect?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		await sleep(30);
+		const last = qAll<HTMLElement>('.mathbox-gselect-item')[SYMBOL_GROUPS.length - 1];
+		last?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		await sleep(320);
+		const lastTarget = Math.min(
+			heads[heads.length - 1]?.offsetTop ?? 0,
+			(sb?.scrollHeight ?? 0) - (sb?.clientHeight ?? 0),
+		);
+		check(
+			'跳到末尾分组时滚到底部（clamp 后位置正确）',
+			sb !== null && Math.abs(sb.scrollTop - lastTarget) <= 6,
+			`scrollTop=${sb?.scrollTop} target=${lastTarget}`,
+		);
+		check(
+			'末尾分组文案已切换',
+			q('.mathbox-gselect-label')?.textContent === SYMBOL_GROUPS[SYMBOL_GROUPS.length - 1]?.name.zh,
+			q('.mathbox-gselect-label')?.textContent ?? '(none)',
+		);
+
+		// 跳回第一个分组 = 回到顶部
+		symSelect?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		await sleep(30);
+		const reopenItems = qAll<HTMLElement>('.mathbox-gselect-item');
+		const beforeTop = sb?.scrollTop;
+		reopenItems[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		await sleep(320);
+		const allHeads = qAll<HTMLElement>('.mathbox-side-body .mathbox-side-group');
+		const relTop0 =
+			allHeads[0] !== undefined && sb !== null
+				? Math.round(allHeads[0].getBoundingClientRect().top - sb.getBoundingClientRect().top)
+				: -999;
+		check(
+			'跳回首个分组时首个分组贴到容器顶部',
+			sb !== null && sb.scrollTop < beforeTop && Math.abs(relTop0) <= 12,
+			`before=${beforeTop} after=${sb?.scrollTop} relTop0=${relTop0}`,
+		);
+	}
+
 	// 再展开一次并点击列表外，验证外部点击收起
 	symSelect?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 	await sleep(30);
@@ -349,6 +402,9 @@ async function main(): Promise<void> {
 		const target = heads[6];
 		if (target) {
 			sideBody.scrollTop = target.offsetTop + 10;
+			// 懒渲染会改变行高，等布局稳定再派发 scroll —— 真实浏览器里
+			// 滚动事件本就在一次任务后才被处理
+			await sleep(120);
 			sideBody.dispatchEvent(new Event('scroll'));
 			await sleep(30);
 			check(
@@ -401,6 +457,31 @@ async function main(): Promise<void> {
 		qAll('.mathbox-side-body .mathbox-side-group').length === TEMPLATE_GROUPS.length,
 		String(qAll('.mathbox-side-body .mathbox-side-group').length),
 	);
+	// 分组跳转在模板页同样必须真的滚动（与快捷工具页共用同一套锚点逻辑）
+	{
+		const sb = q<HTMLElement>('.mathbox-side-body');
+		const heads = qAll<HTMLElement>('.mathbox-side-body .mathbox-side-group');
+		const lastIdx = TEMPLATE_GROUPS.length - 1;
+		const scrollable = sb !== null && sb.scrollHeight > sb.clientHeight + 20;
+		tplSelect?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		await sleep(30);
+		qAll<HTMLElement>('.mathbox-gselect-item')[lastIdx]?.dispatchEvent(
+			new MouseEvent('click', { bubbles: true }),
+		);
+		await sleep(320);
+		const rel =
+			heads[lastIdx] !== undefined && sb !== null
+				? Math.round(heads[lastIdx].getBoundingClientRect().top - sb.getBoundingClientRect().top)
+				: -999;
+		const atBottom = sb !== null && sb.scrollTop >= sb.scrollHeight - sb.clientHeight - 8;
+		check(
+			'模板页点选末个分类能滚过去（标题贴顶或已到底）',
+			!scrollable || (sb !== null && sb.scrollTop > 0 && (Math.abs(rel) <= 12 || atBottom)),
+			`scrollable=${scrollable} scrollTop=${sb?.scrollTop} rel=${rel} atBottom=${atBottom}`,
+		);
+		if (sb) sb.scrollTop = 0;
+		await sleep(60);
+	}
 	// 模板条目：按钮与代码块都不应被裁剪
 	{
 		const tpl = q<HTMLElement>('.mathbox-template');
