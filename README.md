@@ -12,6 +12,9 @@ option bar in between, and a collapsible side pane holding symbols, templates an
 图像导出（SVG / PNG）走 **MathJax 原生 SVG 输出**：字形是内嵌的矢量路径，不依赖任何字体文件，
 导出的图在任何查看器里都与预览逐像素一致，且可无限缩放。
 
+<img width="1489" height="992" alt="image" src="https://github.com/user-attachments/assets/7bd2fbb5-e14f-4f11-8b75-ae3201c358d7" />
+
+
 ## Features / 功能
 
 | | |
