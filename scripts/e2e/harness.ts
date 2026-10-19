@@ -1988,11 +1988,20 @@ async function main(): Promise<void> {
 			'mjx-container{display:inline-block}';
 		document.head.appendChild(style);
 
+		// 干扰项：一条非 MJX id、但含 @font-face 且带 .mathbox- 类名的样式表
+		// （模拟插件自身的 styles.css —— 它绝不能被收进导出结果）
+		const noise = document.createElement('style');
+		noise.textContent =
+			'.mathbox-fake{color:red} @font-face{font-family:"NOISE";src:url("data:font/woff2;base64,BBBB")}';
+		document.head.appendChild(noise);
+
 		const host = document.createElement('div');
-		// 明确给宽高：mjx-c 是空的字形节点，不给尺寸 measure() 会得到 0 → 快照返回 null
-		host.style.cssText = 'font-size:20px;display:inline-block;width:120px;height:36px';
+		// 容器给足宽度（模拟 display 模式撑满预览区），公式本身只有 100px
+		host.style.cssText = 'font-size:20px;display:inline-block;width:600px';
 		const container = document.createElement('mjx-container');
 		const math = document.createElement('mjx-math');
+		// 公式元素显式给尺寸：mjx-c 是空字形节点，不给尺寸 measure() 会得到 0
+		math.style.cssText = 'display:inline-block;width:100px;height:36px';
 		const mi = document.createElement('mjx-mi');
 		const glyph = document.createElement('mjx-c');
 		glyph.className = 'mjx-c1D465';
@@ -2011,6 +2020,16 @@ async function main(): Promise<void> {
 		check('无缺失字体', snapshot?.fontsMissing === 0, String(snapshot?.fontsMissing ?? -1));
 		check('字号取自容器计算值（20px）', (snapshot?.svg ?? '').includes('font-size:20px'));
 
+		// 画布宽度必须是「公式宽度 + padding」，而不是容器宽度（否则左右大片白底）
+		check(
+			'画布宽度贴合公式（100 + 14×2 = 128，而非容器 600）',
+			snapshot?.width === 128,
+			String(snapshot?.width ?? -1),
+		);
+		// 面板样式表绝不能被收进 SVG（否则 244 条 .mathbox-* 规则污染 CHTML 度量）
+		check('SVG 不含面板样式规则（.mathbox-fake）', !(snapshot?.svg ?? '').includes('.mathbox-fake'));
+		check('非 MathJax 样式表的字体未被内联（NOISE）', !(snapshot?.svg ?? '').includes('BBBB'));
+
 		if (snapshot) {
 			const png = await renderSvgToPng(snapshot, 2);
 			check('PNG 光栅化成功且非空', png !== null && png.size > 0, String(png?.size ?? 0));
@@ -2020,6 +2039,7 @@ async function main(): Promise<void> {
 
 		host.remove();
 		style.remove();
+		noise.remove();
 	}
 
 	/* ------------------------- 输出 ------------------------- */

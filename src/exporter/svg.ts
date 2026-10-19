@@ -44,15 +44,31 @@ export interface InlinedCss {
 /** 字体 URL → data:URI 缓存：同一次会话内多次导出零重复网络 / 转码开销 */
 const fontDataCache = new Map<string, string>();
 
-/** 抓取 MathJax 注入的 CHTML 样式表 */
+/**
+ * 抓取 MathJax 注入的 CHTML 样式表。
+ *
+ * **只按 id 判定**（MathJax 注入的表 id 形如 `MJX-CHTML-…`）。
+ * 不要用「内容含 mjx-container」这类宽泛条件 —— 插件自己的 `styles.css`
+ * 也含 `.mathbox-formula > mjx-container` 选择器，一旦被收进来，
+ * 244 条面板规则 + `:root` 变量会一起写进 SVG：
+ * 既让文件膨胀数十倍，又会覆盖 CHTML 的度量（上下标错乱）。
+ *
+ * 兜底：宿主若没用 MJX 前缀 id，则接受「含 @font-face 且不含 .mathbox-」的样式表。
+ */
 function collectMathJaxCss(): string {
-	const parts: string[] = [];
+	const primary: string[] = [];
+	const fallback: string[] = [];
 	document.querySelectorAll('style').forEach((styleEl) => {
 		const text = styleEl.textContent ?? '';
-		const id = styleEl.id ?? '';
-		if (id.startsWith('MJX') || text.includes('mjx-container')) parts.push(text);
+		if (!text) return;
+		if ((styleEl.id ?? '').startsWith('MJX')) {
+			primary.push(text);
+			return;
+		}
+		if (/@font-face[^{]*\{/i.test(text) && !text.includes('.mathbox-')) fallback.push(text);
 	});
-	return parts.join('\n');
+	const joined = primary.join('\n');
+	return joined.length > 0 ? joined : fallback.join('\n');
 }
 
 /** 让样式内容可以安全嵌入 XML */
@@ -173,7 +189,11 @@ export async function buildSnapshotSvg(
 	container: HTMLElement,
 	padding = 14,
 ): Promise<SvgSnapshot | null> {
-	const { width, height } = measure(container);
+	// 量取**公式本身**的尺寸。
+	// display 模式下 `mjx-container` 是块级、宽度会撑满预览区（实测 773px），
+	// 用它当画布会得到「整行宽 + 左右大片白底」；`mjx-math` 才是公式实际占据的区域。
+	const formulaEl = container.querySelector<HTMLElement>('mjx-math') ?? container;
+	const { width, height } = measure(formulaEl);
 	if (width <= 0 || height <= 0) return null;
 
 	const clone = container.cloneNode(true) as HTMLElement;
@@ -182,6 +202,9 @@ export async function buildSnapshotSvg(
 		padding: '0',
 		background: 'transparent',
 		display: 'inline-block',
+		// 容器宽度同样收到公式宽度，避免克隆体内的块级元素继续撑满原宽度
+		width: `${width}px`,
+		height: `${height}px`,
 	});
 
 	const serialized = new XMLSerializer().serializeToString(clone);
