@@ -11,6 +11,7 @@
 import MathBoxPlugin from '../../src/main';
 import { expandToFormula, openMathBoxPopout, openMathBoxTab } from '../../src/commands';
 import { buildSnapshotSvg, renderSvgToPng } from '../../src/exporter/svg';
+import { texToSvg } from '../../src/exporter/texSvg';
 import { App, Editor, MarkdownView, leaves, notices } from './obsidian-stub';
 import { MathBoxSettingTab } from '../../src/settings';
 import { EXTENSION_PACKAGES } from '../../src/core/extensions';
@@ -2072,6 +2073,49 @@ async function main(): Promise<void> {
 		host.remove();
 		style.remove();
 		noise.remove();
+	}
+
+	/* --------------- 13. 图像导出主路径：MathJax 原生 SVG 输出 --------------- */
+	{
+		const tex = String.raw`\int_{-\infty}^{\infty} e^{-x^{2}}\,\mathrm{d}x = \sqrt{\pi}`;
+		const direct = texToSvg(tex, { fontSize: 20, background: 'white' });
+		check('SVG 直出在浏览器环境可用', direct !== null);
+		if (direct) {
+			check('产物为独立 SVG 根节点', direct.svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg"'));
+			check('字形是矢量 path', direct.svg.includes('<path'));
+			check('零字体依赖（无 @font-face）', !direct.svg.includes('@font-face'));
+			check('零文本回退（无 font-family）', !direct.svg.includes('font-family'));
+			check('无 foreignObject', !direct.svg.includes('foreignObject'));
+			check('无 currentColor 残留', !direct.svg.includes('currentColor'));
+			check(
+				'尺寸按 20px 字号换算（宽 > 150px）',
+				direct.width > 150 && direct.height > 50,
+				`${direct.width}×${direct.height}`,
+			);
+			check('体积远小于字体快照（< 40 KB）', direct.svg.length < 40 * 1024, `${Math.round(direct.svg.length / 1024)} KB`);
+
+			// 作为 <img> 加载（正是用户「打开 .svg 文件」的场景）：能 onload 即说明合法且自足
+			const ok = await new Promise<boolean>((resolve) => {
+				const img = new Image();
+				img.onload = () => resolve(img.naturalWidth > 0);
+				img.onerror = () => resolve(false);
+				img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(direct.svg)}`;
+			});
+			check('SVG 可作为图片独立加载（自足、无外部引用）', ok);
+
+			// 直接栅格化（PNG 路径复用同一份 SVG）
+			const png = await renderSvgToPng(direct, 2, 'white');
+			check('SVG 直出可栅格化为 PNG', png !== null && png.size > 0, String(png?.size ?? 0));
+		} else {
+			check('SVG 直出可栅格化为 PNG', false, '无 SVG');
+		}
+
+		const clear = texToSvg(tex, { fontSize: 20, background: 'transparent', color: '#dddddd' });
+		check('透明背景不绘白底', clear !== null && !clear.svg.includes('fill="#ffffff"'));
+		check('透明背景采用指定颜色', clear !== null && clear.svg.includes('#dddddd'));
+
+		const matrix = texToSvg(String.raw`\begin{pmatrix} a_{11} & a_{12} \\ a_{21} & a_{22} \end{pmatrix}`, {});
+		check('矩阵环境可渲染（ams 包已注册）', matrix !== null && !matrix.svg.includes('merror'));
 	}
 
 	/* ------------------------- 输出 ------------------------- */

@@ -4,8 +4,16 @@
  * 四种格式的可用性（实测结论见 exporter/mathjax.ts 顶部注释）：
  *   LaTeX  → 剪贴板
  *   MathML → 剪贴板（取自 CHTML 输出的 mjx-assistive-mml 语义树）
- *   SVG    → 下载 + 剪贴板（降级快照）
- *   PNG    → 下载（3x 栅格化，降级快照）
+ *   SVG    → 下载 + 剪贴板（MathJax 原生 SVG 输出）
+ *   PNG    → 下载（3x 栅格化）
+ *
+ * ## 图像路线：SVG 直出优先，DOM 快照兜底
+ * 主路径是 `texSvg.texToSvg()` —— 让 MathJax 直接产出矢量，
+ * 字形是 `<path>` 轮廓，**不含字体、不含 foreignObject、不引用任何外部资源**，
+ * 因此任何查看器（浏览器、Word、微信、Illustrator）都能逐像素一致地渲染。
+ *
+ * 快照路线（`svg.buildSnapshotSvg`）保留为降级：万一 SVG 管线初始化失败
+ * （例如打包异常导致字体数据缺失），仍能导出一张可用的图。
  */
 
 import { PNG_SCALE } from '../core/constants';
@@ -13,6 +21,7 @@ import type { ExportBackground, ExportFormat } from '../types';
 import { copyToClipboard, downloadBlob, downloadText, timestampSuffix } from './download';
 import { extractMathML, mathMLFromMathItems, texToMathML } from './mathjax';
 import { buildSnapshotSvg, renderSvgToPng, type SvgSnapshot } from './svg';
+import { texToSvg } from './texSvg';
 
 export type ExportFailReason = 'noMathJax' | 'noSvgOutput' | 'render' | 'unknown';
 
@@ -54,12 +63,54 @@ function resolveMathML(input: ExportInput): string | null {
 /**
  * 图像导出是否仍是「降级」的。
  *
- * v3.3 起快照会把 CHTML 的 `@font-face` 转成 data:URI 内联进 SVG，
- * 字形与笔记内一致；只有**字体没能内联**（fetch 失败 / 样式表里本就没有字体）
- * 时才回退系统字体，此时才需要提示用户。
+ * v3.4 起主路径是 MathJax 原生 SVG 输出（字形即 path，零字体依赖），
+ * 不存在降级问题；只有回落到 DOM 快照时才需要判断字体是否内联成功。
  */
 function isDegraded(snapshot: SvgSnapshot): boolean {
 	return snapshot.fontsMissing > 0 || snapshot.fontsInlined === 0;
+}
+
+/** 取当前公式的基准字号（与预览一致），拿不到时按 16px */
+function fontSizeOf(input: ExportInput): number {
+	if (!input.renderedEl) return 16;
+	const size = Number.parseFloat(getComputedStyle(input.renderedEl).fontSize);
+	return Number.isFinite(size) && size > 0 ? size : 16;
+}
+
+/** 透明背景时的字形颜色：跟随主题前景色，融入深色页面 */
+function textColorOf(background: ExportBackground): string {
+	if (background === 'white') return '#000000';
+	return getComputedStyle(document.body).color || '#000000';
+}
+
+/**
+ * 生成图像 SVG：先走 MathJax 原生 SVG 输出，失败再回落到 DOM 快照。
+ *
+ * 返回值里 `degraded` 表示是否走了快照兜底且字体未能内联。
+ */
+async function renderImageSvg(
+	input: ExportInput,
+): Promise<{ svg: string; width: number; height: number; degraded: boolean } | null> {
+	const background = input.background ?? 'white';
+
+	const direct = texToSvg(input.latex, {
+		display: input.display,
+		padding: 14,
+		fontSize: fontSizeOf(input),
+		background,
+		color: textColorOf(background),
+	});
+	if (direct) return { ...direct, degraded: false };
+
+	if (!input.renderedEl) return null;
+	const snapshot = await buildSnapshotSvg(input.renderedEl, 14, { background });
+	if (!snapshot) return null;
+	return {
+		svg: snapshot.svg,
+		width: snapshot.width,
+		height: snapshot.height,
+		degraded: isDegraded(snapshot),
+	};
 }
 
 export async function exportFormula(
@@ -83,26 +134,20 @@ export async function exportFormula(
 		}
 
 		case 'svg': {
-			if (!input.renderedEl) return { ok: false, reason: 'render' };
-			const snapshot = await buildSnapshotSvg(input.renderedEl, 14, {
-				background: input.background,
-			});
-			if (!snapshot) return { ok: false, reason: 'render' };
-			downloadText(snapshot.svg, `${baseName()}.svg`, 'image/svg+xml');
-			await copyToClipboard(snapshot.svg);
-			return { ok: true, degraded: isDegraded(snapshot) };
+			const image = await renderImageSvg(input);
+			if (!image) return { ok: false, reason: 'render' };
+			downloadText(image.svg, `${baseName()}.svg`, 'image/svg+xml');
+			await copyToClipboard(image.svg);
+			return { ok: true, degraded: image.degraded };
 		}
 
 		case 'png': {
-			if (!input.renderedEl) return { ok: false, reason: 'render' };
-			const snapshot = await buildSnapshotSvg(input.renderedEl, 14, {
-				background: input.background,
-			});
-			if (!snapshot) return { ok: false, reason: 'render' };
-			const blob = await renderSvgToPng(snapshot, PNG_SCALE);
+			const image = await renderImageSvg(input);
+			if (!image) return { ok: false, reason: 'render' };
+			const blob = await renderSvgToPng(image, PNG_SCALE, input.background ?? 'white');
 			if (!blob) return { ok: false, reason: 'noSvgOutput' };
 			downloadBlob(blob, `${baseName()}.png`);
-			return { ok: true, degraded: isDegraded(snapshot) };
+			return { ok: true, degraded: image.degraded };
 		}
 
 		default:

@@ -1,5 +1,10 @@
 /**
- * CHTML DOM → SVG / PNG 快照（宿主未打包 SVG 输出组件时的降级路径）
+ * CHTML DOM → SVG / PNG 快照（**降级路径**）
+ *
+ * ## 现状
+ * v3.4 起图像导出的主路径是 `exporter/texSvg.ts`——MathJax 直接输出矢量，
+ * 字形即 `<path>`，零字体依赖。本文件保留为**兜底**：万一 SVG 管线初始化失败
+ * （打包异常、字体数据缺失等），仍能导出一张可用的图。
  *
  * ## 做法
  * 把已渲染的 `mjx-container` 子树序列化进 `<foreignObject>`，并内联 MathJax 的 CHTML 样式表。
@@ -10,11 +15,9 @@
  * 字体取不到，CHTML 的布局度量与实际字形脱节 → 字符错位、上下标错乱、间距全错。
  * 故导出前把 `src` 换成 `data:font/woff2;base64,…`（内联资源不受限制），并做会话级缓存。
  *
- * ## 与「真 SVG 输出」的差距
- * 理想路线是 MathJax 的 SVG 输出（字形直接是 `<path>` 矢量、零字体依赖，
- * latexlive.com 的导出即此方案）。但宿主只打包了 CHTML 输出，自带 SVG 输出组件
- * 会突破 300 KB 体积门禁，故此处仍是「快照 + 字体内联」的改良版：
- * 字形与笔记内一致，本质仍是 DOM 快照，缩放极限不如真矢量。
+ * ## 已知局限（正是改用 SVG 直出的原因）
+ * 本质仍是 HTML 快照：字形依赖内联字体、布局依赖 CSS 继承，
+ * 与笔记内的观感只能逼近、无法保证逐像素一致，缩放也受快照限制。
  */
 
 import {
@@ -299,9 +302,25 @@ export async function buildSnapshotSvg(
 	};
 }
 
-/** 把快照 SVG 栅格化为 PNG Blob */
-export async function renderSvgToPng(snapshot: SvgSnapshot, scale: number): Promise<Blob | null> {
-	const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(snapshot.svg)}`;
+/** 可栅格化的最小信息（快照与 SVG 直出结果都满足） */
+export interface RasterSource {
+	svg: string;
+	width: number;
+	height: number;
+}
+
+/**
+ * 把 SVG 栅格化为 PNG Blob。
+ *
+ * `background` 为 `transparent` 时不铺白底——画布本身是透明的，
+ * 生成的 PNG 带 alpha 通道，叠在任何底色上都不突兀。
+ */
+export async function renderSvgToPng(
+	source: RasterSource,
+	scale: number,
+	background: ExportBackground = 'white',
+): Promise<Blob | null> {
+	const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source.svg)}`;
 	const img = new Image();
 
 	const loaded = new Promise<boolean>((resolve) => {
@@ -313,16 +332,18 @@ export async function renderSvgToPng(snapshot: SvgSnapshot, scale: number): Prom
 	if (!(await loaded)) return null;
 
 	const canvas = createEl('canvas');
-	canvas.width = Math.max(1, Math.round(snapshot.width * scale));
-	canvas.height = Math.max(1, Math.round(snapshot.height * scale));
+	canvas.width = Math.max(1, Math.round(source.width * scale));
+	canvas.height = Math.max(1, Math.round(source.height * scale));
 
 	const ctx = canvas.getContext('2d');
 	if (!ctx) return null;
 
-	ctx.fillStyle = '#ffffff';
-	ctx.fillRect(0, 0, canvas.width, canvas.height);
+	if (background === 'white') {
+		ctx.fillStyle = '#ffffff';
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+	}
 	ctx.setTransform(scale, 0, 0, scale, 0, 0);
-	ctx.drawImage(img, 0, 0, snapshot.width, snapshot.height);
+	ctx.drawImage(img, 0, 0, source.width, source.height);
 
 	return await new Promise<Blob | null>((resolve) => {
 		canvas.toBlob((blob) => resolve(blob), 'image/png');

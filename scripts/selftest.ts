@@ -11,6 +11,7 @@ import { buildInjectionPlan, EXTENSION_PACKAGES, defaultExtensionMap } from '../
 import { SYMBOL_GROUPS } from '../src/symbols';
 import { TEMPLATE_GROUPS } from '../src/templates';
 import { CURSOR } from '../src/core/constants';
+import { texToSvg } from '../src/exporter/texSvg';
 import {
 	applyFontFaces,
 	extractFontFaces,
@@ -259,7 +260,8 @@ check(
 	buildScript.includes('prerender') && buildScript.indexOf('prerender') < buildScript.indexOf('tsc'),
 	buildScript,
 );
-check('体积门禁已放宽到 300 KB', /const GATE_KB = 300;/.test(readRepo('scripts/check-size.mjs')));
+// v3.4：图像导出改用 MathJax 原生 SVG 输出，内置字体 path 数据 → 门禁放宽到 2 MB
+check('体积门禁已放宽到 2000 KB', /const GATE_KB = 2000;/.test(readRepo('scripts/check-size.mjs')));
 const packScript = readRepo('scripts/package.mjs');
 // 用实际命令串定位（注释里也提到 tsc，按裸 'tsc' 匹配会命中文案而非调用）
 const packPrerenderAt = packScript.indexOf("['scripts/prerender-symbols.mjs']");
@@ -558,6 +560,40 @@ check(
 	'只内联公式实际用到的字体，且失败回退全量',
 	/collectUsedFamilies\(clone\)/.test(svgSrc) && /inlined\.inlined === 0 && only\.size > 0/.test(svgSrc),
 );
+
+// ---- SVG 直出（v3.4 主路径）----
+console.log('\n[14] 图像导出：MathJax 原生 SVG 输出');
+const INTEGRAL = String.raw`\int_{-\infty}^{\infty} e^{-x^{2}}\,\mathrm{d}x = \sqrt{\pi}`;
+const direct = texToSvg(INTEGRAL, { fontSize: 16, background: 'white' });
+check('SVG 直出成功', direct !== null);
+if (direct) {
+	check('字形为矢量 path（不再依赖字体）', direct.svg.includes('<path'));
+	check('不含 @font-face', !direct.svg.includes('@font-face'));
+	check('不含 font-family（无文本回退）', !direct.svg.includes('font-family'));
+	check('不含 foreignObject（非 DOM 快照）', !direct.svg.includes('foreignObject'));
+	check('不残留 currentColor（颜色已固化）', !direct.svg.includes('currentColor'));
+	check('白底绘制 rect', direct.svg.includes('fill="#ffffff"'));
+	check(
+		'尺寸为正且按字号换算',
+		direct.width > 100 && direct.height > 40,
+		`${direct.width}×${direct.height}`,
+	);
+	check('体积远小于字体快照（< 40 KB）', direct.svg.length < 40 * 1024, `${Math.round(direct.svg.length / 1024)} KB`);
+}
+
+const clear = texToSvg(INTEGRAL, { fontSize: 16, background: 'transparent', color: '#eeeeee' });
+check('透明背景不绘白底', clear !== null && !clear.svg.includes('fill="#ffffff"'));
+check('透明背景使用指定字形颜色', clear !== null && clear.svg.includes('#eeeeee'));
+
+const matrixSvg = texToSvg(String.raw`\begin{pmatrix} a_{11} & a_{12} \\ a_{21} & a_{22} \end{pmatrix}`, {});
+check('矩阵环境可渲染（ams 包已注册）', matrixSvg !== null && !matrixSvg.svg.includes('merror'));
+check(
+	'矩阵产物同样是 path',
+	matrixSvg !== null && matrixSvg.svg.includes('<path'),
+);
+
+const bad = texToSvg(String.raw`\frac{`, {});
+check('语法错误时仍返回 SVG（渲染为红色 merror 而非抛错）', bad !== null);
 
 console.log(`\n结果：${failed === 0 ? '全部通过' : `${failed} 项失败`}\n`);
 process.exit(failed === 0 ? 0 : 1);
