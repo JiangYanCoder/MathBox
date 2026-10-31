@@ -1,0 +1,7 @@
+{
+  "id": "obsidian-math-box",
+  "name": "MathBox",
+  "author": "JiangYanCoder",
+  "description": "A visual LaTeX formula editor: live preview, symbol palette, templates, favorites, and multi-format export.",
+  "repo": "JiangYanCoder/MathBox"
+}
