@@ -17,6 +17,12 @@ import {
 	SIDE_PANE_WIDTH,
 } from './core/constants';
 import { defaultExtensionMap, EXTENSION_PACKAGES } from './core/extensions';
+import {
+	EDITOR_FONT_SIZE,
+	normalizeFontSize,
+	PREVIEW_FONT_SIZE,
+	type FontSizeSpec,
+} from './core/fontSize';
 import { downloadText, pickTextFile, timestampSuffix } from './exporter/download';
 import { FAVORITE_GROUP_PRESETS, mergeFavorites, parseImportedFavorites } from './favorites/store';
 import type MathBoxPlugin from './main';
@@ -41,6 +47,9 @@ export const DEFAULT_SETTINGS: MathBoxSettings = {
 	sidePaneOpen: true,
 	sidePaneWidth: SIDE_PANE_WIDTH,
 	splitRatio: 0.45,
+	// 字号默认值取 v3.4.0 的实测值（预览 1.35em × 13px = 17.55px → 取整 18；编辑 13px）
+	previewFontSize: PREVIEW_FONT_SIZE.def,
+	editorFontSize: EDITOR_FONT_SIZE.def,
 	panelRect: null,
 	extensions: defaultExtensionMap(),
 	lang: 'auto',
@@ -102,6 +111,8 @@ export function normalizeSettings(raw: unknown): MathBoxSettings {
 		SIDE_PANE_MAX_WIDTH,
 	);
 	settings.splitRatio = Math.min(0.8, Math.max(0.2, toNumber(data.splitRatio, DEFAULT_SETTINGS.splitRatio)));
+	settings.previewFontSize = normalizeFontSize(data.previewFontSize, PREVIEW_FONT_SIZE);
+	settings.editorFontSize = normalizeFontSize(data.editorFontSize, EDITOR_FONT_SIZE);
 	settings.panelRect = normalizeRect(data.panelRect);
 
 	// 扩展包：以默认表为基准合并，未知 id 丢弃、新增 id 补默认值
@@ -173,6 +184,26 @@ export class MathBoxSettingTab extends PluginSettingTab {
 					void this.resetLayout();
 				}),
 			);
+
+		addHeading(containerEl, t('settings.fontSection'));
+		this.addFontSizeSetting(containerEl, {
+			name: t('settings.previewFontSize'),
+			desc: t('settings.previewFontSizeDesc'),
+			spec: PREVIEW_FONT_SIZE,
+			get: () => this.plugin.settings.previewFontSize,
+			set: (value) => {
+				this.plugin.settings.previewFontSize = value;
+			},
+		});
+		this.addFontSizeSetting(containerEl, {
+			name: t('settings.editorFontSize'),
+			desc: t('settings.editorFontSizeDesc'),
+			spec: EDITOR_FONT_SIZE,
+			get: () => this.plugin.settings.editorFontSize,
+			set: (value) => {
+				this.plugin.settings.editorFontSize = value;
+			},
+		});
 
 		addHeading(containerEl, t('settings.insertSection'));
 		new Setting(containerEl)
@@ -280,6 +311,72 @@ export class MathBoxSettingTab extends PluginSettingTab {
 
 		addHeading(containerEl, t('settings.aboutSection'));
 		new Setting(containerEl).setName(t('panel.title')).setDesc(t('settings.aboutDesc'));
+	}
+
+	/**
+	 * 字号设置行：`↺` 复位图标 + 数字输入框（px）。
+	 *
+	 * · 输入即归一化（夹取到区间 / 非法回默认）并落盘；归一化后与输入不一致时回写输入框，
+	 *   让用户立刻看到实际生效值（例如填 99 会跳成 30）；
+	 * · 前置图标**只复位本行**到软件默认值（预览 18px / 编辑 13px），替代原先的
+	 *   「恢复默认字号」整行按钮——两项各自独立，不必为了改一项而重置另一项。
+	 */
+	private addFontSizeSetting(
+		containerEl: HTMLElement,
+		options: {
+			name: string;
+			desc: string;
+			spec: FontSizeSpec;
+			get(): number;
+			set(value: number): void;
+		},
+	): void {
+		const { spec } = options;
+		const t = this.plugin.translator;
+		const setting = new Setting(containerEl).setName(options.name).setDesc(options.desc);
+
+		// 先加图标按钮、后加输入框 → 控件行内顺序为「↺ | 输入框」
+		setting.addExtraButton((btn) =>
+			btn
+				.setIcon('rotate-ccw')
+				.setTooltip(t('settings.fontResetOne', { n: spec.def }))
+				.onClick(() => {
+					void this.resetFontSize(options);
+				}),
+		);
+
+		setting.addText((text) => {
+			// 宿主 TextComponent 恒有 inputEl；e2e 替身没有该属性，故运行时判定后再改写
+			const input: unknown = text.inputEl;
+			const isInput = input instanceof HTMLInputElement;
+			if (isInput) {
+				input.type = 'number';
+				input.min = String(spec.min);
+				input.max = String(spec.max);
+				input.step = '1';
+				input.addClass('mathbox-font-input');
+				input.setAttribute('aria-label', options.name);
+			}
+			text.setValue(String(normalizeFontSize(options.get(), spec)));
+			text.onChange((raw) => {
+				const next = normalizeFontSize(Number.parseFloat(raw), spec);
+				options.set(next);
+				void this.plugin.saveSettings();
+				if (isInput && input.value !== String(next)) input.value = String(next);
+			});
+		});
+	}
+
+	/** 单行字号复位为软件默认值（预览 18px / 编辑 13px） */
+	private async resetFontSize(options: {
+		spec: FontSizeSpec;
+		set(value: number): void;
+	}): Promise<void> {
+		const t = this.plugin.translator;
+		options.set(options.spec.def);
+		await this.plugin.saveSettings();
+		new Notice(t('settings.fontResetOne', { n: options.spec.def }));
+		this.display();
 	}
 
 	private async resetLayout(): Promise<void> {

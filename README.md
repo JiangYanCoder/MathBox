@@ -1,6 +1,6 @@
 # MathBox
 
-**v3.4.0** — A visual LaTeX formula editor for Obsidian: live preview on top, LaTeX source below, an
+**v3.4.1** — A visual LaTeX formula editor for Obsidian: live preview on top, LaTeX source below, an
 option bar in between, and a collapsible side pane holding symbols, templates and favorites.
 
 一个显式的**上下分栏**公式编辑器：上方实时渲染、下方编辑 LaTeX 源码，中间选项栏控制字号 / 字体 /
@@ -22,6 +22,7 @@ option bar in between, and a collapsible side pane holding symbols, templates an
 | Three entry points | ribbon icon, editor right-click menu (**Insert formula with MathBox**), command `MathBox: Open MathBox formula editor` (default `Ctrl/Cmd+M`) |
 | Live preview | rendered through the host MathJax (`renderMath`), 200 ms debounce, errors reported without blanking the last good render |
 | Option bar | font size / font family / color / environment on the left; **Insert inline** · **Insert display** on the right |
+| Display font size | the preview and the source pane each have their own `− value ＋` stepper, left of **Favorite** / **Copy**: 1 px steps, or click the number and type a value (Enter or blur applies, Esc cancels, clearing it resets); preview 12–30 px, source 11–30 px, persisted across restarts |
 | Source pane | monospace editor with copy / clear; pasting strips `$`, `$$`, `\(\)`, `\[\]` delimiters automatically |
 | Symbol palette | **13 groups / 370 items**, every button rendered as a real formula (Computer Modern / TeX); lazy-rendered with a per-formula cache so the pane opens instantly |
 | Formula templates | **9 groups / 66 items**, each entry previewed as a rendered formula instead of raw LaTeX |
@@ -36,7 +37,8 @@ option bar in between, and a collapsible side pane holding symbols, templates an
 
 1. Open the panel from any of the three entry points.
 2. Type LaTeX below (or click symbols/templates in the side pane).
-3. Watch the preview, optionally apply font size / font / color.
+3. Watch the preview; use the `−` / `＋` stepper above to scale the preview (and the one above the
+   source pane to scale the code), or apply font size / font / color to the formula itself.
 4. Click **Inline formula** or **Display formula** — the panel closes and the formula is written into
    the note in a single editor operation, so one `Ctrl+Z` undoes it.
 
@@ -49,6 +51,9 @@ Radicals → Limits → Trigonometry → Integrals → Large operators → Brack
 ## Settings / 设置
 
 - **Interface language** — follow app language / 简体中文 / English
+- **Default font size** — preview (12–30 px) and source (11–30 px). The `−/+` steppers inside the
+  panel write back to these two values; a `↺` button in front of each field restores **that row only**
+  to the software default (preview 18 px, source 13 px — the measured v3.4.0 baseline)
 - **Expand non-standard macros on insert** — rewrites physics-style commands (`\vb{}`, `\abs{}`,
   `\dv{}{}`, …) as standard LaTeX so the formula stays portable outside Obsidian
 - **Use compact display math** — `$$x$$` on one line vs. a fenced block on its own lines
@@ -61,6 +66,7 @@ Radicals → Limits → Trigonometry → Integrals → Large operators → Brack
 
 | Version | Highlights |
 | --- | --- |
+| 3.4.1 | Display font size for the preview and the source pane: `− value ＋` steppers left of Favorite / Copy, buttons sized like the neighbouring icon buttons, click the value to type (Enter/blur applies, Esc cancels without closing the panel, clearing resets), 1 px steps, preview 12–30 px / source 11–30 px, persisted; the two sizes are exposed as **default sizes** in settings with a per-row `↺` reset |
 | 3.4.0 | Image export switched to native MathJax SVG output (glyphs as `<path>`, no font dependency, ~7 KB vs ~288 KB); white / transparent background switchable in the export menu; size gate raised to 2000 KB |
 | 3.3.0 | Side pane fully rendered through host MathJax (symbols, templates, favorites); two-line hover hints; matrix previews + 2×2 insertion skeletons; group re-ordering; 370 bilingual remarks |
 | 3.2.x | Favorites groups, adaptive option bar, panel/tab/popout entry points |

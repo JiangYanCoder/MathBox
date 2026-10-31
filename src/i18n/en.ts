@@ -48,6 +48,13 @@ export const en: Record<I18nKey, string> = {
 	'option.envNone': 'No environment',
 	'option.envHint': 'Wrap the current source in the chosen environment (align / cases / matrices)',
 
+	// ---- Font size (v3.4.1; preview: left of Favorite, source: left of Copy) ----
+	'option.previewFontSize': 'Preview size',
+	'option.editorFontSize': 'Editor size',
+	'option.fontSizeDecrease': 'Decrease font size',
+	'option.fontSizeIncrease': 'Increase font size',
+	'option.fontSizeResetHint': 'Click to type a value; clear it to reset ({n}px)',
+
 	// ---- C: source ----
 	'source.title': 'LaTeX source',
 	'source.copy': 'Copy LaTeX source',
@@ -182,6 +189,12 @@ export const en: Record<I18nKey, string> = {
 	'settings.layoutDesc': 'Position, size, side-pane width and the render/source split are all draggable; use this to restore the defaults',
 	'settings.layoutReset': 'Reset layout',
 	'settings.layoutResetDone': 'Panel layout restored',
+	'settings.fontSection': 'Default font size',
+	'settings.previewFontSize': 'Preview default size',
+	'settings.previewFontSizeDesc': 'Default font size (px) of the rendered preview, 12 ~ 30; the −/+ control left of Favorite in the panel writes back to this value',
+	'settings.editorFontSize': 'Editor default size',
+	'settings.editorFontSizeDesc': 'Default font size (px) of the LaTeX source box, 11 ~ 30; the −/+ control left of Copy in the panel writes back to this value',
+	'settings.fontResetOne': 'Reset to default {n}px',
 	'settings.extSection': 'Startup extension packages',
 	'settings.extDesc': 'Inject TeX extensions before MathJax initialises so notes can use \\dv, \\ce, \\boldsymbol and friends directly. Toggles are applied immediately, but since MathJax initialises on the first math render a restart of Obsidian is usually needed for full effect.',
 	'settings.extNaming': 'Package names follow MathJax: the "amsmath" mentioned in requirement docs maps to ams and mathtools in MathJax; no package named amsmath exists.',

@@ -468,6 +468,10 @@ export class Setting {
 		cb(new FakeText(this.controlEl));
 		return this;
 	}
+	addExtraButton(cb: (b: FakeExtraButton) => void): this {
+		cb(new FakeExtraButton(this.controlEl));
+		return this;
+	}
 }
 
 class FakeDropdown {
@@ -532,6 +536,33 @@ class FakeText {
 		return this;
 	}
 	onChange(): this {
+		return this;
+	}
+}
+
+/**
+ * 额外图标按钮替身：真实宿主渲染为 `.clickable-icon` 按钮。
+ * 这里落一个带 `data-icon` 的 button，供 e2e 断言图标名与点击行为。
+ */
+class FakeExtraButton {
+	private readonly el: HTMLButtonElement;
+	constructor(parent: HTMLElement) {
+		this.el = parent.createEl('button', { cls: 'clickable-icon' }) as HTMLButtonElement;
+	}
+	setIcon(icon: string): this {
+		this.el.setAttribute('data-icon', icon);
+		return this;
+	}
+	setTooltip(tooltip: string): this {
+		this.el.setAttribute('aria-label', tooltip);
+		this.el.title = tooltip;
+		return this;
+	}
+	onClick(cb: () => void): this {
+		this.el.addEventListener('click', cb);
+		return this;
+	}
+	setDisabled(): this {
 		return this;
 	}
 }

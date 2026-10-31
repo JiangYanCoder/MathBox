@@ -11,6 +11,13 @@ import { buildInjectionPlan, EXTENSION_PACKAGES, defaultExtensionMap } from '../
 import { SYMBOL_GROUPS } from '../src/symbols';
 import { TEMPLATE_GROUPS } from '../src/templates';
 import { CURSOR } from '../src/core/constants';
+import {
+	EDITOR_FONT_SIZE,
+	isDefaultFontSize,
+	normalizeFontSize,
+	PREVIEW_FONT_SIZE,
+	stepFontSize,
+} from '../src/core/fontSize';
 import { texToSvg } from '../src/exporter/texSvg';
 import {
 	applyFontFaces,
@@ -620,6 +627,113 @@ check(
 
 const bad = texToSvg(String.raw`\frac{`, {});
 check('语法错误时仍返回 SVG（渲染为红色 merror 而非抛错）', bad !== null);
+
+// ---- 字号调节（v3.4.1）----
+console.log('\n[15] 字号调节：预览区 / 编辑区步进器');
+const renderSectionSrc = readRepo('src/panel/sections/renderSection.ts');
+const sourceSectionSrc = readRepo('src/panel/sections/sourceSection.ts');
+
+check(
+	'预览默认 18px（v3.4.0 实测 17.55px 取整）',
+	PREVIEW_FONT_SIZE.def === 18,
+	String(PREVIEW_FONT_SIZE.def),
+);
+check('编辑默认 13px（v3.4.0 实测基线）', EDITOR_FONT_SIZE.def === 13, String(EDITOR_FONT_SIZE.def));
+check(
+	'上界统一为 30px（2026-10-31 指定）',
+	PREVIEW_FONT_SIZE.max === 30 && EDITOR_FONT_SIZE.max === 30,
+	`${PREVIEW_FONT_SIZE.max}/${EDITOR_FONT_SIZE.max}`,
+);
+check(
+	'区间自洽（min ≤ def ≤ max）',
+	PREVIEW_FONT_SIZE.min <= PREVIEW_FONT_SIZE.def &&
+		PREVIEW_FONT_SIZE.def <= PREVIEW_FONT_SIZE.max &&
+		EDITOR_FONT_SIZE.min <= EDITOR_FONT_SIZE.def &&
+		EDITOR_FONT_SIZE.def <= EDITOR_FONT_SIZE.max,
+	`preview ${PREVIEW_FONT_SIZE.min}-${PREVIEW_FONT_SIZE.max} editor ${EDITOR_FONT_SIZE.min}-${EDITOR_FONT_SIZE.max}`,
+);
+check(
+	'非法值回默认（undefined / NaN / 字符串）',
+	normalizeFontSize(undefined, PREVIEW_FONT_SIZE) === 18 &&
+		normalizeFontSize(Number.NaN, EDITOR_FONT_SIZE) === 13 &&
+		normalizeFontSize('20', PREVIEW_FONT_SIZE) === 18,
+);
+check(
+	'越界夹取到上下界',
+	normalizeFontSize(999, PREVIEW_FONT_SIZE) === PREVIEW_FONT_SIZE.max &&
+		normalizeFontSize(0, EDITOR_FONT_SIZE) === EDITOR_FONT_SIZE.min,
+);
+check(
+	'小数取整（17.55 → 18）',
+	normalizeFontSize(17.55, PREVIEW_FONT_SIZE) === 18 && normalizeFontSize(13.4, EDITOR_FONT_SIZE) === 13,
+);
+check(
+	'步进 ±1',
+	stepFontSize(18, 1, PREVIEW_FONT_SIZE) === 19 && stepFontSize(18, -1, PREVIEW_FONT_SIZE) === 17,
+);
+check(
+	'边界步进不越界',
+	stepFontSize(PREVIEW_FONT_SIZE.max, 1, PREVIEW_FONT_SIZE) === PREVIEW_FONT_SIZE.max &&
+		stepFontSize(EDITOR_FONT_SIZE.min, -1, EDITOR_FONT_SIZE) === EDITOR_FONT_SIZE.min,
+);
+check(
+	'默认值判定',
+	isDefaultFontSize(18, PREVIEW_FONT_SIZE) && !isDefaultFontSize(19, PREVIEW_FONT_SIZE),
+);
+
+check(
+	'settings 读入时归一化两个字号',
+	/settings\.previewFontSize = normalizeFontSize\(data\.previewFontSize, PREVIEW_FONT_SIZE\)/.test(settingsSrc) &&
+		/settings\.editorFontSize = normalizeFontSize\(data\.editorFontSize, EDITOR_FONT_SIZE\)/.test(settingsSrc),
+);
+check(
+	'DEFAULT_SETTINGS 采用实测默认值（不写字面量）',
+	/previewFontSize: PREVIEW_FONT_SIZE\.def/.test(settingsSrc) &&
+		/editorFontSize: EDITOR_FONT_SIZE\.def/.test(settingsSrc),
+);
+check(
+	'设置页暴露两项默认字号 + 每行 ↺ 单行复位',
+	/settings\.fontSection/.test(settingsSrc) &&
+		/addExtraButton\(\(btn\) =>[\s\S]{0,120}?setIcon\('rotate-ccw'\)/.test(settingsSrc) &&
+		/resetFontSize\(options\)/.test(settingsSrc),
+);
+check(
+	'已移除「恢复默认字号」整行按钮（无 resetFontSizes）',
+	!/resetFontSizes/.test(settingsSrc) && !/'settings\.fontReset'/.test(settingsSrc),
+);
+check(
+	'预览字号走 CSS 变量（改字号不重渲染 MathJax）',
+	/--mathbox-preview-font-size/.test(cssText) &&
+		/--mathbox-preview-font-size/.test(renderSectionSrc),
+);
+check('编辑区字号写 textarea 行内样式', /textarea\.style\.fontSize/.test(sourceSectionSrc));
+check(
+	'两侧表头均挂步进器，且置于收藏 / 复制之前',
+	/createStepper\(/.test(renderSectionSrc) &&
+		/createStepper\(/.test(sourceSectionSrc) &&
+		renderSectionSrc.indexOf('createStepper(') < renderSectionSrc.indexOf('Icons.star') &&
+		sourceSectionSrc.indexOf('createStepper(') < sourceSectionSrc.indexOf('Icons.copy'),
+);
+check('步进器样式已定义（三段式 + 禁用态）', /\.mathbox-stepper-value/.test(cssText) && /\.mathbox-stepper-btn:disabled/.test(cssText));
+check(
+	'± 按钮宽度与 .mathbox-btn 一致（27px）',
+	/\.mathbox-stepper-btn \{[^}]*width: 27px/.test(cssText) && /\.mathbox-btn \{[^}]*width: 27px/.test(cssText),
+);
+const uiSrc = readRepo('src/panel/ui.ts');
+check(
+	'数值为可编辑 input（键入 → 归一化提交）',
+	/valueInput = makeEl\('input'/.test(uiSrc) && /function commitInput\(\)/.test(uiSrc),
+);
+check(
+	'输入提交路径覆盖 回车 / 失焦 / Esc',
+	/key === 'Enter'/.test(uiSrc) && /addEventListener\('blur'/.test(uiSrc) && /key === 'Escape'/.test(uiSrc),
+);
+check(
+	'i18n 双语均含字号文案',
+	['option.previewFontSize', 'option.editorFontSize', 'settings.fontSection'].every(
+		(key) => readRepo('src/i18n/zh.ts').includes(`'${key}'`) && readRepo('src/i18n/en.ts').includes(`'${key}'`),
+	),
+);
 
 console.log(`\n结果：${failed === 0 ? '全部通过' : `${failed} 项失败`}\n`);
 process.exit(failed === 0 ? 0 : 1);

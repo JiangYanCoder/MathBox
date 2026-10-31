@@ -37,6 +37,15 @@ export interface PanelContext {
 	/** 已渲染公式的容器（导出入参） */
 	getRenderedElement(): HTMLElement | null;
 
+	/** 预览区字号（px，已归一化） */
+	getPreviewFontSize(): number;
+	/** 设置预览区字号：归一化 → 写设置并落盘 → 即时应用到预览容器 */
+	setPreviewFontSize(px: number): void;
+	/** 源码编辑框字号（px，已归一化） */
+	getEditorFontSize(): number;
+	/** 设置编辑框字号：归一化 → 写设置并落盘 → 即时应用 */
+	setEditorFontSize(px: number): void;
+
 	/** 收藏 / 导出 */
 	addCurrentToFavorites(): void;
 	openExportMenu(anchor: HTMLElement): void;

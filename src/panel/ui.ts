@@ -182,6 +182,171 @@ export function buildSelect(
 	return select;
 }
 
+// ---------------------------------------------------------------- 加减号步进器
+
+export interface StepperOptions {
+	/** 组合的无障碍名称（如「预览字号」） */
+	label: string;
+	/** 当前值（px） */
+	value: number;
+	min: number;
+	max: number;
+	/** 输入框清空（提交空值）时的复位目标（默认字号） */
+	defaultValue: number;
+	/** 减小 / 增大按钮的无障碍名称 */
+	decreaseLabel: string;
+	increaseLabel: string;
+	/** 数值输入框的悬停提示（含「可直接输入 / 清空复位」说明） */
+	valueHint?: string;
+	onChange: (value: number) => void;
+	parent?: HTMLElement;
+}
+
+export interface StepperApi {
+	el: HTMLElement;
+	getValue(): number;
+	/** 外部同步（设置页改动后回写界面）；emit 为 true 时触发 onChange */
+	setValue(value: number, emit?: boolean): void;
+}
+
+/**
+ * 加减号步进器（v3.4.1 字号调节）：
+ *   `−` / 数值输入框 / `＋` 三段，两侧按钮 27×27（与 `iconButton` **完全同宽同高**）。
+ *
+ * 交互：
+ *  · 单击 ±1；到达上下界时对应按钮自动禁用；
+ *  · 数值框**可直接键入**：点击即全选，回车 / 失焦提交，Esc 撤销，越界夹取，清空则回默认字号；
+ *  · 键盘：↑/↓ 调节（输入框内与外层一致）。
+ */
+export function createStepper(options: StepperOptions): StepperApi {
+	const { min, max, defaultValue } = options;
+	let value = clamp(Math.round(options.value), min, max);
+
+	const el = makeEl('div', {
+		cls: 'mathbox-stepper',
+		attr: { role: 'group', 'aria-label': options.label },
+		...(options.parent ? { parent: options.parent } : {}),
+	});
+
+	const minusBtn = makeEl('button', {
+		cls: 'mathbox-stepper-btn',
+		text: '−',
+		attr: { type: 'button', 'aria-label': options.decreaseLabel },
+		parent: el,
+	});
+	const valueInput = makeEl('input', {
+		cls: 'mathbox-stepper-value',
+		attr: {
+			type: 'text',
+			inputmode: 'numeric',
+			autocomplete: 'off',
+			spellcheck: 'false',
+			'aria-label': options.label,
+			// 声明「本控件自行处理 Esc」：面板关窗监听在捕获阶段，需要它放行
+			'data-esc-stop': '1',
+		},
+		parent: el,
+	});
+	const plusBtn = makeEl('button', {
+		cls: 'mathbox-stepper-btn',
+		text: '＋',
+		attr: { type: 'button', 'aria-label': options.increaseLabel },
+		parent: el,
+	});
+
+	valueInput.title = options.valueHint ?? options.label;
+
+	function paint(): void {
+		valueInput.value = String(value);
+		minusBtn.toggleAttribute('disabled', value <= min);
+		plusBtn.toggleAttribute('disabled', value >= max);
+		el.setAttribute('data-value', String(value));
+	}
+
+	function commit(next: number, emit = true): void {
+		const clamped = clamp(Math.round(next), min, max);
+		if (clamped === value) return;
+		value = clamped;
+		paint();
+		if (emit) options.onChange(value);
+	}
+
+	/** 提交输入框内容：空 → 默认字号；非法 → 回填当前值；越界 → 夹取 */
+	function commitInput(): void {
+		// 面板已销毁 / 节点已脱离文档时不再提交，避免把「关闭面板前的半截输入」写进设置
+		if (!valueInput.isConnected) return;
+		const raw = valueInput.value.trim();
+		if (raw === '') {
+			commit(defaultValue);
+			paint();
+			return;
+		}
+		const parsed = Number.parseFloat(raw);
+		if (!Number.isFinite(parsed)) {
+			paint();
+			return;
+		}
+		commit(parsed);
+		paint();
+	}
+
+	minusBtn.addEventListener('click', () => commit(value - 1));
+	plusBtn.addEventListener('click', () => commit(value + 1));
+
+	// 数值框：点击即全选，便于直接改写
+	valueInput.addEventListener('focus', () => valueInput.select());
+	valueInput.addEventListener('click', () => valueInput.select());
+	valueInput.addEventListener('blur', () => commitInput());
+	valueInput.addEventListener('keydown', (ev: KeyboardEvent) => {
+		// 关键：Esc 必须在此拦截并阻止冒泡 —— 否则会冒到面板 / 窗口层，
+		// 被宿主当作「关闭面板」，用户的「撤销本次输入」变成「关掉整个面板」。
+		if (ev.key === 'Enter') {
+			ev.preventDefault();
+			ev.stopPropagation();
+			commitInput();
+			valueInput.select();
+		} else if (ev.key === 'Escape') {
+			ev.preventDefault();
+			ev.stopPropagation();
+			paint();
+			valueInput.blur();
+		} else if (ev.key === 'ArrowUp') {
+			ev.preventDefault();
+			ev.stopPropagation();
+			commit(value + 1);
+			valueInput.select();
+		} else if (ev.key === 'ArrowDown') {
+			ev.preventDefault();
+			ev.stopPropagation();
+			commit(value - 1);
+			valueInput.select();
+		}
+	});
+
+	// 键盘调节：焦点在 ± 按钮上时也生效（输入框内的方向键已单独处理，避免双步进）
+	el.addEventListener('keydown', (ev: KeyboardEvent) => {
+		if (ev.target === valueInput) return;
+		if (ev.key === 'ArrowUp' || ev.key === 'ArrowRight') {
+			ev.preventDefault();
+			commit(value + 1);
+		} else if (ev.key === 'ArrowDown' || ev.key === 'ArrowLeft') {
+			ev.preventDefault();
+			commit(value - 1);
+		}
+	});
+
+	paint();
+
+	return {
+		el,
+		getValue: () => value,
+		setValue(next: number, emit = false): void {
+			commit(next, emit);
+			paint();
+		},
+	};
+}
+
 // ---------------------------------------------------------------- 数值 / 主题小工具
 
 export function clamp(value: number, min: number, max: number): number {

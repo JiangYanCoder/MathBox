@@ -68,6 +68,10 @@ export class FloatingWindow {
 		// Esc 关闭：仅当焦点位于窗口内时响应，避免抢走宿主的全局 Esc
 		this.keyHandler = (ev: KeyboardEvent): void => {
 			if (ev.key !== 'Escape') return;
+			// 控件自行处理 Esc 时（如字号输入框的「撤销本次输入」）不关闭窗口：
+			// 本监听是**捕获阶段**，控件里的 stopPropagation 拦不住，必须在源头放行
+			const target = ev.target as HTMLElement | null;
+			if (target && typeof target.closest === 'function' && target.closest('[data-esc-stop]')) return;
 			const active = document.activeElement;
 			if (active && !this.containerEl.contains(active)) return;
 			ev.preventDefault();

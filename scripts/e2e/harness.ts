@@ -1968,6 +1968,55 @@ async function main(): Promise<void> {
 		'设置页含注入通道状态说明',
 		(tab.containerEl.textContent ?? '').includes('预加载注入'),
 	);
+	// v3.4.1：默认字号分节（与面板步进器读写同一设置；每行前置 ↺ 单行复位）
+	const settingNames = Array.from(tab.containerEl.querySelectorAll('.setting-item-name')).map((el) => el.textContent ?? '');
+	check('设置页含「默认字号」分节', headings.some((h) => h.includes('默认字号')), headings.join('|'));
+	check(
+		'设置页提供预览区 / 编辑区两个默认字号项',
+		settingNames.some((n) => n.includes('预览区默认字号')) && settingNames.some((n) => n.includes('编辑区默认字号')),
+		settingNames.join('|'),
+	);
+	check(
+		'已移除「恢复默认字号」整行按钮（改为每行前置 ↺）',
+		!settingNames.some((n) => n.includes('恢复默认字号')),
+		settingNames.join('|'),
+	);
+	const fontRows = Array.from(tab.containerEl.querySelectorAll('.setting-item')).filter((row) =>
+		(row.querySelector('.setting-item-name')?.textContent ?? '').includes('默认字号'),
+	);
+	check('字号设置行数 = 2', fontRows.length === 2, String(fontRows.length));
+	check(
+		'每行控件顺序为「↺ 图标 → 输入框」',
+		fontRows.length === 2 &&
+			fontRows.every((row) => {
+				const kids = Array.from(row.querySelector('.setting-item-control')?.children ?? []);
+				return (
+					kids[0]?.matches('button.clickable-icon[data-icon="rotate-ccw"]') === true &&
+					(kids[1] as HTMLElement | undefined)?.tagName === 'INPUT'
+				);
+			}),
+		fontRows
+			.map((row) =>
+				Array.from(row.querySelector('.setting-item-control')?.children ?? [])
+					.map((k) => `${k.tagName}${k.getAttribute('data-icon') ? `[${k.getAttribute('data-icon')}]` : ''}`)
+					.join('>'),
+			)
+			.join(' | '),
+	);
+
+	// ↺ 只复位本行（断言结果状态，不只看图标存在）
+	plugin.settings.previewFontSize = 25;
+	plugin.settings.editorFontSize = 20;
+	tab.display();
+	const resetIcon = tab.containerEl.querySelector('button.clickable-icon[data-icon="rotate-ccw"]');
+	resetIcon?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+	await sleep(20);
+	check(
+		'点 ↺ 只把预览字号复位为软件默认 18px（编辑行不受影响）',
+		plugin.settings.previewFontSize === 18 && plugin.settings.editorFontSize === 20,
+		`${plugin.settings.previewFontSize}/${plugin.settings.editorFontSize}`,
+	);
+	plugin.settings.editorFontSize = 13;
 
 	/* ------------------------- 11. 标签页吸附 / 独立窗口 ------------------------- */
 
@@ -2252,6 +2301,169 @@ async function main(): Promise<void> {
 		reopen[0]?.click();
 		await sleep(30);
 		check('可切回白底', plugin.settings.exportBackground === 'white', String(plugin.settings.exportBackground));
+	}
+
+	/* --------------- 15. 字号调节（v3.4.1：预览 / 编辑区步进器） --------------- */
+	{
+		if (!q('.mathbox-modal')) {
+			plugin.openPanel({ source: 'command', editor: null as never, prefill: 'a^2 + b^2' });
+			await sleep(60);
+		}
+
+		const click = (el: Element | null | undefined): void => {
+			el?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		};
+		const fontSizeOf = (el: HTMLElement | null): number =>
+			el ? Number.parseFloat(getComputedStyle(el).fontSize) : Number.NaN;
+
+		const renderTools = q<HTMLElement>('.mathbox-render .mathbox-section-tools');
+		const sourceTools = q<HTMLElement>('.mathbox-source .mathbox-section-tools');
+		const pStepper = renderTools?.querySelector<HTMLElement>('.mathbox-stepper') ?? null;
+		const eStepper = sourceTools?.querySelector<HTMLElement>('.mathbox-stepper') ?? null;
+		check('预览区表头有字号步进器', pStepper !== null);
+		check('编辑区表头有字号步进器', eStepper !== null);
+
+		// 位置：DOM 顺序紧邻在「收藏」/「复制」之前（即视觉上位于其左侧）
+		const favBtn = renderTools?.querySelector<HTMLElement>('button[aria-label="收藏"]') ?? null;
+		const copyBtn =
+			sourceTools?.querySelector<HTMLElement>('button[aria-label="复制 LaTeX 源码"]') ?? null;
+		check(
+			'预览步进器位于「收藏」左侧（DOM 前序兄弟）',
+			Boolean(pStepper && favBtn) && pStepper?.nextElementSibling === favBtn,
+			`next=${pStepper?.nextElementSibling?.getAttribute('aria-label') ?? '(none)'}`,
+		);
+		check(
+			'编辑步进器位于「复制」左侧（DOM 前序兄弟）',
+			Boolean(eStepper && copyBtn) && eStepper?.nextElementSibling === copyBtn,
+			`next=${eStepper?.nextElementSibling?.getAttribute('aria-label') ?? '(none)'}`,
+		);
+
+		// 默认值 = 实测基线（预览 17.55px → 18px；编辑 13px）
+		check(
+			'字号默认值 = 实测基线取整（18 / 13）',
+			plugin.settings.previewFontSize === 18 && plugin.settings.editorFontSize === 13,
+			`${plugin.settings.previewFontSize}/${plugin.settings.editorFontSize}`,
+		);
+
+		const mathEl = q<HTMLElement>('.mathbox-render-content .mathbox-math');
+		const ta = q<HTMLTextAreaElement>('.mathbox-textarea');
+		check('默认字号已应用到计算样式（预览 18px）', Math.abs(fontSizeOf(mathEl) - 18) < 0.01, String(fontSizeOf(mathEl)));
+		check('默认字号已应用到计算样式（编辑 13px）', Math.abs(fontSizeOf(ta) - 13) < 0.01, String(fontSizeOf(ta)));
+
+		// 版式：± 按钮与「收藏」按钮同宽同高
+		const pBtns = pStepper?.querySelectorAll('button') ?? [];
+		const pSize = pBtns[0]?.getBoundingClientRect();
+		const favSize = favBtn?.getBoundingClientRect();
+		check(
+			'± 按钮与收藏按钮同宽同高（27×27）',
+			Boolean(pSize && favSize) &&
+				Math.round(pSize?.width ?? 0) === Math.round(favSize?.width ?? -1) &&
+				Math.round(pSize?.height ?? 0) === Math.round(favSize?.height ?? -1),
+			`${Math.round(pSize?.width ?? 0)}×${Math.round(pSize?.height ?? 0)} vs ${Math.round(favSize?.width ?? 0)}×${Math.round(favSize?.height ?? 0)}`,
+		);
+
+		// 预览 ＋1 → 计算字号真的变了（断言结果状态，不只断言按钮存在）
+		click(pBtns[1]);
+		await sleep(20);
+		check('点击 ＋ 后预览计算字号 = 19px', Math.abs(fontSizeOf(mathEl) - 19) < 0.01, String(fontSizeOf(mathEl)));
+		check('预览字号已写入设置', plugin.settings.previewFontSize === 19, String(plugin.settings.previewFontSize));
+		const pValue = pStepper?.querySelector('.mathbox-stepper-value') as HTMLInputElement | null;
+		check('数值框为可编辑输入框且同步为 19', pValue?.tagName === 'INPUT' && pValue?.value === '19', `${pValue?.tagName}/${pValue?.value}`);
+		check('未因改字号触发重渲染（公式节点仍在）', qAll('.mathbox-render-content .mjx-container').length === 1);
+
+		// 直接键入：25 + 回车
+		if (pValue) {
+			pValue.focus();
+			pValue.value = '25';
+			pValue.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		}
+		await sleep(20);
+		check(
+			'键入 25 回车后预览字号 = 25px',
+			plugin.settings.previewFontSize === 25 && Math.abs(fontSizeOf(mathEl) - 25) < 0.01,
+			`${plugin.settings.previewFontSize}/${fontSizeOf(mathEl)}`,
+		);
+
+		// 键入越界值 → 夹取到上界 30
+		if (pValue) {
+			pValue.value = '99';
+			pValue.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		}
+		await sleep(20);
+		check(
+			'键入 99 回车后夹取到上界 30px',
+			plugin.settings.previewFontSize === 30 && Math.abs(fontSizeOf(mathEl) - 30) < 0.01,
+			`${plugin.settings.previewFontSize}/${fontSizeOf(mathEl)}`,
+		);
+
+		// 清空 + 回车 → 恢复默认
+		if (pValue) {
+			pValue.value = '';
+			pValue.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		}
+		await sleep(20);
+		check(
+			'清空数值回车后恢复默认（18px）',
+			plugin.settings.previewFontSize === 18 && Math.abs(fontSizeOf(mathEl) - 18) < 0.01,
+			`${plugin.settings.previewFontSize}/${fontSizeOf(mathEl)}`,
+		);
+
+		// Esc 撤销未提交的输入
+		if (pValue) {
+			pValue.value = '7';
+			pValue.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+		}
+		await sleep(20);
+		check(
+			'Esc 撤销后回到 18（不写设置）',
+			plugin.settings.previewFontSize === 18 && pValue?.value === '18',
+			`${plugin.settings.previewFontSize}/${pValue?.value}`,
+		);
+		// Esc 不得冒泡关闭面板（否则「撤销输入」变成「关掉整个面板」）
+		check('数值框内按 Esc 不会关闭面板', q('.mathbox-modal') !== null);
+
+		// 编辑区 −1
+		const eBtns = eStepper?.querySelectorAll('button') ?? [];
+		click(eBtns[0]);
+		await sleep(20);
+		check('点击 − 后编辑区计算字号 = 12px', Math.abs(fontSizeOf(ta) - 12) < 0.01, String(fontSizeOf(ta)));
+		check(
+			'textarea 行内字号已写入',
+			ta?.style.fontSize === '12px',
+			ta?.style.fontSize ?? '(none)',
+		);
+
+		// 键盘 ↑ 增大（焦点在 ＋ 按钮上）
+		pBtns[1]?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+		await sleep(20);
+		check('方向键 ↑ 增大字号', plugin.settings.previewFontSize === 19, String(plugin.settings.previewFontSize));
+
+		// 上界：连续点击夹取到 30，且 ＋ 按钮禁用
+		for (let i = 0; i < 20; i += 1) click(pBtns[1]);
+		await sleep(20);
+		check(
+			'连点至上限时夹取在 30px',
+			plugin.settings.previewFontSize === 30 && Math.abs(fontSizeOf(mathEl) - 30) < 0.01,
+			`${plugin.settings.previewFontSize}/${fontSizeOf(mathEl)}`,
+		);
+		check('到达上界后 ＋ 按钮禁用', pBtns[1]?.hasAttribute('disabled') === true);
+
+		// 复位两侧，避免污染后续断言
+		if (pValue) {
+			pValue.value = '';
+			pValue.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		}
+		const eValue = eStepper?.querySelector('.mathbox-stepper-value') as HTMLInputElement | null;
+		if (eValue) {
+			eValue.value = '';
+			eValue.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		}
+		await sleep(20);
+		check(
+			'复位后两侧均为默认值',
+			plugin.settings.previewFontSize === 18 && plugin.settings.editorFontSize === 13,
+			`${plugin.settings.previewFontSize}/${plugin.settings.editorFontSize}`,
+		);
 	}
 
 	/* ------------------------- 输出 ------------------------- */

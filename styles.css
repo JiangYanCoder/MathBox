@@ -365,6 +365,75 @@ body.mathbox-dragging .mathbox-topbar {
 	font-size: 12.5px;
 }
 
+/* ---------- 加减号步进器（v3.4.1 字号调节）----------
+ * 三段式：− / 数值输入框 / ＋。两侧按钮 **27×27，与 .mathbox-btn（收藏/复制）完全同宽同高**；
+ * 中间数值可直接键入（点击全选，回车/失焦提交，清空回默认）。
+ * 总宽 27 + 54 + 27 = 108px，放在区块表头工具栏内与图标按钮同排不换行。 */
+.mathbox-stepper {
+	display: inline-flex;
+	align-items: center;
+	height: 27px;
+	flex: 0 0 auto;
+}
+
+.mathbox-stepper-btn {
+	width: 27px;
+	height: 27px;
+	padding: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-muted);
+	font-size: 14px;
+	line-height: 1;
+	cursor: pointer;
+}
+
+.mathbox-stepper-btn:hover:not(:disabled) {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.mathbox-stepper-btn:disabled {
+	opacity: 0.35;
+	cursor: default;
+}
+
+/* 数值输入框：外观压平到与纯文本一致，仅在悬停/聚焦时给反馈。
+ * 宽度 54px（2026-10-31 王先生指定）：两位数 + 光标留白充足，点击即全选可直接改写。 */
+.mathbox-stepper-value {
+	width: 54px;
+	height: 27px;
+	padding: 0;
+	margin: 0;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	box-shadow: none;
+	text-align: center;
+	font-family: inherit;
+	font-size: 11.5px;
+	line-height: 27px;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-muted);
+}
+
+.mathbox-stepper-value:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.mathbox-stepper-value:focus {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+	box-shadow: 0 0 0 1px var(--interactive-accent);
+	outline: none;
+}
+
 .mathbox-icon {
 	display: inline-flex;
 	align-items: center;
@@ -416,6 +485,8 @@ body.mathbox-dragging .mathbox-topbar {
 	font-size: 12px;
 	font-weight: 600;
 	color: var(--text-muted);
+	/* 表头变窄时不允许折行：折行会把表头从 38px 撑到 41px，破坏主区/侧栏的横向分隔线对齐 */
+	white-space: nowrap;
 }
 
 .mathbox-section-tools {
@@ -446,7 +517,10 @@ body.mathbox-dragging .mathbox-topbar {
 }
 
 .mathbox-math {
-	font-size: 1.35em;
+	/* 字号由面板写入 --mathbox-preview-font-size（设置 previewFontSize）；
+	 * 缺省回退到 v3.4.0 的 1.35em（13px × 1.35 = 17.55px）。
+	 * CHTML 以 em 计量，改此处即整条公式等比缩放，无需重排。 */
+	font-size: var(--mathbox-preview-font-size, 1.35em);
 	line-height: 1.4;
 }
 
@@ -588,6 +662,13 @@ body.mathbox-resizing {
 .mathbox-source-count {
 	font-size: 11px;
 	color: var(--text-faint);
+	white-space: nowrap;
+	/* 表头变窄时**先压缩字数统计**（它是次要信息），保证右侧工具组不越出表头；
+	 * 步进器放宽到 108px 后，主区 ≤300px 时靠这里让位。 */
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .mathbox-textarea {

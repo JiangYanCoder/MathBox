@@ -47,6 +47,13 @@ export const zh = {
 	'option.envNone': '无环境',
 	'option.envHint': '把当前源码包进所选环境（align / cases / 矩阵等）',
 
+	// ---- 字号调节（v3.4.1，预览区「收藏」左侧 / 编辑区「复制」左侧）----
+	'option.previewFontSize': '预览字号',
+	'option.editorFontSize': '编辑字号',
+	'option.fontSizeDecrease': '减小字号',
+	'option.fontSizeIncrease': '增大字号',
+	'option.fontSizeResetHint': '点击可直接键入，清空后恢复默认（{n}px）',
+
 	// ---- C 源码区 ----
 	'source.title': 'LaTeX 源码',
 	'source.copy': '复制 LaTeX 源码',
@@ -183,6 +190,12 @@ export const zh = {
 	'settings.layoutDesc': '面板位置、尺寸、侧边栏宽度与上下分区比例均可直接拖动；此处可一键恢复默认',
 	'settings.layoutReset': '恢复默认布局',
 	'settings.layoutResetDone': '面板布局已恢复默认',
+	'settings.fontSection': '默认字号',
+	'settings.previewFontSize': '预览区默认字号',
+	'settings.previewFontSizeDesc': '公式渲染预览的默认字号（px），取值 12 ~ 30；面板预览区「收藏」左侧的 −/+ 调整后同步写回此项',
+	'settings.editorFontSize': '编辑区默认字号',
+	'settings.editorFontSizeDesc': 'LaTeX 源码编辑框的默认字号（px），取值 11 ~ 30；面板编辑区「复制」左侧的 −/+ 调整后同步写回此项',
+	'settings.fontResetOne': '恢复默认 {n}px',
 	'settings.extSection': '启动扩展包',
 	'settings.extDesc': '在 MathJax 初始化之前注入 TeX 扩展，使笔记正文可直接使用 \\dv、\\ce、\\boldsymbol 等扩展命令。开关保存后立即尝试注入；因 MathJax 只在首次渲染公式时初始化，完整生效通常需要重启 Obsidian。',
 	'settings.extNaming': '包名以 MathJax 为准：需求文档中的「amsmath」在 MathJax 中对应 ams 与 mathtools，并不存在名为 amsmath 的扩展包。',

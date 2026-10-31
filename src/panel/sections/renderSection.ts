@@ -4,14 +4,21 @@
 
 import { finishRenderMath, renderMath } from 'obsidian';
 import { LONG_SOURCE_WARN } from '../../core/constants';
+import { PREVIEW_FONT_SIZE } from '../../core/fontSize';
 import { ensureMathJax } from '../../mathjaxReady';
-import { iconButton, Icons, makeEl } from '../ui';
+import { createStepper, iconButton, Icons, makeEl } from '../ui';
 import type { PanelContext } from './context';
 
 export interface RenderSectionApi {
 	el: HTMLElement;
 	update(): Promise<void>;
 	getContentEl(): HTMLElement;
+	/**
+	 * 应用预览字号（px）。
+	 * 只写容器上的 CSS 变量 —— CHTML 的字形 / 间距以 em 计量，随容器字号等比缩放，
+	 * 因此**不需要重渲染 MathJax**（重渲染只在源码变化时发生）。
+	 */
+	applyFontSize(px: number): void;
 }
 
 function describeError(error: unknown): string {
@@ -27,6 +34,20 @@ export function createRenderSection(ctx: PanelContext): RenderSectionApi {
 	makeEl('span', { cls: 'mathbox-section-title', text: ctx.t('render.title'), parent: head });
 	const tools = makeEl('div', { cls: 'mathbox-section-tools', parent: head });
 
+	// 字号调节（v3.4.1）：置于「收藏」左侧，与工具栏既有图标按钮同排
+	createStepper({
+		label: ctx.t('option.previewFontSize'),
+		value: ctx.getPreviewFontSize(),
+		min: PREVIEW_FONT_SIZE.min,
+		max: PREVIEW_FONT_SIZE.max,
+		defaultValue: PREVIEW_FONT_SIZE.def,
+		decreaseLabel: ctx.t('option.fontSizeDecrease'),
+		increaseLabel: ctx.t('option.fontSizeIncrease'),
+		valueHint: ctx.t('option.fontSizeResetHint', { n: PREVIEW_FONT_SIZE.def }),
+		onChange: (px) => ctx.setPreviewFontSize(px),
+		parent: tools,
+	});
+
 	const favBtn = iconButton(Icons.star, ctx.t('render.favorite'), { parent: tools });
 	const exportBtn = iconButton(Icons.download, ctx.t('render.export'), { parent: tools });
 
@@ -35,6 +56,11 @@ export function createRenderSection(ctx: PanelContext): RenderSectionApi {
 
 	const body = makeEl('div', { cls: 'mathbox-render-body', parent: el });
 	const content = makeEl('div', { cls: 'mathbox-render-content', parent: body });
+
+	function applyFontSize(px: number): void {
+		content.style.setProperty('--mathbox-preview-font-size', `${px}px`);
+	}
+	applyFontSize(ctx.getPreviewFontSize());
 
 	const warnBar = makeEl('div', { cls: 'mathbox-note is-warn', parent: el });
 	warnBar.hidden = true;
@@ -93,5 +119,6 @@ export function createRenderSection(ctx: PanelContext): RenderSectionApi {
 		el,
 		update,
 		getContentEl: () => content,
+		applyFontSize,
 	};
 }

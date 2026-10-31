@@ -3,8 +3,9 @@
  */
 
 import { stripDelimiters } from '../../core/latex';
+import { EDITOR_FONT_SIZE } from '../../core/fontSize';
 import { copyToClipboard } from '../../exporter/download';
-import { iconButton, Icons, makeEl } from '../ui';
+import { createStepper, iconButton, Icons, makeEl } from '../ui';
 import type { PanelContext } from './context';
 
 export interface SourceSectionApi {
@@ -12,6 +13,8 @@ export interface SourceSectionApi {
 	setValue(value: string, caret?: number): void;
 	getTextarea(): HTMLTextAreaElement;
 	focus(): void;
+	/** 应用编辑区字号（px）：直接写 textarea 的行内字号 */
+	applyFontSize(px: number): void;
 }
 
 export function createSourceSection(ctx: PanelContext): SourceSectionApi {
@@ -23,6 +26,19 @@ export function createSourceSection(ctx: PanelContext): SourceSectionApi {
 	const countEl = makeEl('span', { cls: 'mathbox-source-count', parent: head });
 
 	const tools = makeEl('div', { cls: 'mathbox-section-tools', parent: head });
+	// 字号调节（v3.4.1）：置于「复制」左侧
+	createStepper({
+		label: t('option.editorFontSize'),
+		value: ctx.getEditorFontSize(),
+		min: EDITOR_FONT_SIZE.min,
+		max: EDITOR_FONT_SIZE.max,
+		defaultValue: EDITOR_FONT_SIZE.def,
+		decreaseLabel: t('option.fontSizeDecrease'),
+		increaseLabel: t('option.fontSizeIncrease'),
+		valueHint: t('option.fontSizeResetHint', { n: EDITOR_FONT_SIZE.def }),
+		onChange: (px) => ctx.setEditorFontSize(px),
+		parent: tools,
+	});
 	const copyBtn = iconButton(Icons.copy, t('source.copy'), { parent: tools });
 	const clearBtn = iconButton(Icons.eraser, t('source.clear'), { parent: tools });
 
@@ -37,6 +53,11 @@ export function createSourceSection(ctx: PanelContext): SourceSectionApi {
 		},
 	});
 	textarea.placeholder = t('source.placeholder');
+
+	function applyFontSize(px: number): void {
+		textarea.style.fontSize = `${px}px`;
+	}
+	applyFontSize(ctx.getEditorFontSize());
 
 	function updateCount(value: string): void {
 		const length = value.trim().length;
@@ -80,5 +101,6 @@ export function createSourceSection(ctx: PanelContext): SourceSectionApi {
 		},
 		getTextarea: () => textarea,
 		focus: () => textarea.focus(),
+		applyFontSize,
 	};
 }

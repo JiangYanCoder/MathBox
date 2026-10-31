@@ -70,6 +70,10 @@ export interface MathBoxSettings {
 	sidePaneWidth: number;
 	/** 上（渲染）/下（源码）分区比例 0.2 ~ 0.8 */
 	splitRatio: number;
+	/** 预览区公式字号（px，12 ~ 28，默认 18）；见 core/fontSize.ts */
+	previewFontSize: number;
+	/** 源码编辑框字号（px，11 ~ 22，默认 13）；见 core/fontSize.ts */
+	editorFontSize: number;
 	/** 面板几何；null 表示使用居中默认尺寸 */
 	panelRect: PanelRect | null;
 	/** 启动扩展包开关（扩展包 id → 是否启用） */

@@ -35,6 +35,7 @@ import {
 	SPLIT_MIN_PX,
 } from '../core/constants';
 import { createDebounce, type Debounced } from '../core/debounce';
+import { EDITOR_FONT_SIZE, normalizeFontSize, PREVIEW_FONT_SIZE } from '../core/fontSize';
 import { buildInsertText, splitCursor } from '../core/insert';
 import { expandMacros, countExpandableMacros } from '../core/macros';
 import { applyEnvironment, looksLikeLatex, stripDelimiters } from '../core/latex';
@@ -733,6 +734,36 @@ export class MathBoxModal extends FloatingWindow implements PanelContext {
 
 	getRenderedElement(): HTMLElement | null {
 		return this.renderSection?.getContentEl() ?? null;
+	}
+
+	// ------------------------------------------------------------ 字号
+
+	getPreviewFontSize(): number {
+		return normalizeFontSize(this.plugin.settings.previewFontSize, PREVIEW_FONT_SIZE);
+	}
+
+	/**
+	 * 设置预览字号：先应用（即时反馈），再写设置。
+	 * 只改容器 CSS 变量，不触发重渲染 —— CHTML 随容器字号等比缩放。
+	 */
+	setPreviewFontSize(px: number): void {
+		const next = normalizeFontSize(px, PREVIEW_FONT_SIZE);
+		this.renderSection?.applyFontSize(next);
+		if (this.plugin.settings.previewFontSize === next) return;
+		this.plugin.settings.previewFontSize = next;
+		this.plugin.queueSave();
+	}
+
+	getEditorFontSize(): number {
+		return normalizeFontSize(this.plugin.settings.editorFontSize, EDITOR_FONT_SIZE);
+	}
+
+	setEditorFontSize(px: number): void {
+		const next = normalizeFontSize(px, EDITOR_FONT_SIZE);
+		this.sourceSection?.applyFontSize(next);
+		if (this.plugin.settings.editorFontSize === next) return;
+		this.plugin.settings.editorFontSize = next;
+		this.plugin.queueSave();
 	}
 
 	// ------------------------------------------------------------ 收藏 / 导出
