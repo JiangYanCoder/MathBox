@@ -333,7 +333,11 @@ const formulaBlock = /^\.mathbox-formula\s*\{[^}]*\}/m.exec(cssText)?.[0] ?? '';
 check('公式容器未设固定高度（高度自适应）', !/height\s*:/.test(formulaBlock), formulaBlock.slice(0, 120));
 check('公式容器允许横向滚动（超宽公式不裁切）', /overflow-x:\s*auto/.test(formulaBlock));
 check('已渲染态把字号钉到正文默认字号（与笔记公式视觉一致）', /\.mathbox-formula\.is-rendered\s*\{[^}]*font-size:\s*var\(--font-text-size/.test(cssText));
-check('已渲染态归零宿主块级容器外边距', /\.mathbox-formula\.is-rendered\s*>\s*mjx-container\s*\{[^}]*margin:\s*0\s*!important/.test(cssText));
+check(
+	'已渲染态归零宿主块级容器外边距（特异性压过 MathJax，不用 !important）',
+	/\.mathbox-modal \.mathbox-formula\.is-rendered\s*>\s*\[jax="CHTML"\]\s*\{[^}]*margin:\s*0;/.test(cssText) &&
+		!/\.mathbox-formula\.is-rendered\s*>\s*mjx-container\s*\{[^}]*!important/.test(cssText),
+);
 
 // 两处接入点：模板 buildTemplate 与收藏 buildFavoriteRow 都挂公式容器
 const sideSrc = readRepo('src/panel/sections/sideSection.ts');

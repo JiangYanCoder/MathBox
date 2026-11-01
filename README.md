@@ -1,6 +1,6 @@
 # MathBox
 
-**v3.4.1** — A visual LaTeX formula editor for Obsidian: live preview on top, LaTeX source below, an
+**v3.4.2** — A visual LaTeX formula editor for Obsidian: live preview on top, LaTeX source below, an
 option bar in between, and a collapsible side pane holding symbols, templates and favorites.
 
 一个显式的**上下分栏**公式编辑器：上方实时渲染、下方编辑 LaTeX 源码，中间选项栏控制字号 / 字体 /
@@ -19,7 +19,7 @@ option bar in between, and a collapsible side pane holding symbols, templates an
 
 | | |
 | --- | --- |
-| Three entry points | ribbon icon, editor right-click menu (**Insert formula with MathBox**), command `MathBox: Open MathBox formula editor` (default `Ctrl/Cmd+M`) |
+| Three entry points | ribbon icon, editor right-click menu (**Insert formula with MathBox**), command `MathBox: Open MathBox formula editor` (no default hotkey — bind your own in *Settings → Hotkeys*) |
 | Live preview | rendered through the host MathJax (`renderMath`), 200 ms debounce, errors reported without blanking the last good render |
 | Option bar | font size / font family / color / environment on the left; **Insert inline** · **Insert display** on the right |
 | Display font size | the preview and the source pane each have their own `− value ＋` stepper, left of **Favorite** / **Copy**: 1 px steps, or click the number and type a value (Enter or blur applies, Esc cancels, clearing it resets); preview 12–30 px, source 11–30 px, persisted across restarts |
@@ -66,6 +66,7 @@ Radicals → Limits → Trigonometry → Integrals → Large operators → Brack
 
 | Version | Highlights |
 | --- | --- |
+| 3.4.2 | Plugin id renamed to `math-box` — **rename the plugin folder to `math-box` when upgrading** (settings/favorites are preserved with the folder, then re-enable the plugin); settings searchable via declarative `getSettingDefinitions()` (Obsidian 1.13+); no default hotkey anymore (bind your own in Settings → Hotkeys); host `requestUrl` instead of `fetch`; removed deprecated `execCommand` fallback; CSS lint cleanup (zero `!important`, dropped partially-supported CSS); release assets now ship build-provenance attestations |
 | 3.4.1 | Display font size for the preview and the source pane: `− value ＋` steppers left of Favorite / Copy, buttons sized like the neighbouring icon buttons, click the value to type (Enter/blur applies, Esc cancels without closing the panel, clearing resets), 1 px steps, preview 12–30 px / source 11–30 px, persisted; the two sizes are exposed as **default sizes** in settings with a per-row `↺` reset |
 | 3.4.0 | Image export switched to native MathJax SVG output (glyphs as `<path>`, no font dependency, ~7 KB vs ~288 KB); white / transparent background switchable in the export menu; size gate raised to 2000 KB |
 | 3.3.0 | Side pane fully rendered through host MathJax (symbols, templates, favorites); two-line hover hints; matrix previews + 2×2 insertion skeletons; group re-ordering; 370 bilingual remarks |

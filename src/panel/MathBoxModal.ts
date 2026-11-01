@@ -352,6 +352,9 @@ export class MathBoxModal extends FloatingWindow implements PanelContext {
 			this.minimized = true;
 			this.modalEl.classList.add('is-minimized');
 			this.panelEl.classList.add('is-minimized');
+			// 摘掉内联高度：折叠态高度由 CSS（.is-minimized { height:auto }）接管；
+			// 不再用 CSS !important 反压内联样式（社区审查禁用 !important）
+			this.modalEl.style.removeProperty('height');
 		} else {
 			// ② 先解除折叠，再写回几何（clampRect 负责视口适配，不改设置记忆）
 			this.minimized = false;
@@ -426,11 +429,15 @@ export class MathBoxModal extends FloatingWindow implements PanelContext {
 	/** 应用几何（脱离文档流，绝对定位于 modal-container 之上） */
 	private applyRect(rect: PanelRect): void {
 		if (this.maximized) return;
-		// position: absolute 与 margin: 0 由 .mathbox-modal 类提供，此处只写动态数值
+		// 位置与宽度始终跟随（折叠态拖拽顶栏时窗口也要跟手）；
+		// 高度在折叠期间**不写**内联值，交给折叠态样式（.is-minimized { height:auto }）——
+		// 此前用 CSS !important 反压内联几何，社区审查禁用 !important 后改为源头上不写
 		this.modalEl.style.setProperty('left', `${rect.x}px`);
 		this.modalEl.style.setProperty('top', `${rect.y}px`);
 		this.modalEl.style.setProperty('width', `${rect.width}px`);
-		this.modalEl.style.setProperty('height', `${rect.height}px`);
+		if (!this.minimized) {
+			this.modalEl.style.setProperty('height', `${rect.height}px`);
+		}
 	}
 
 	/** 拖拽移动：抓顶栏空白处（按钮与窗口控件不触发） */

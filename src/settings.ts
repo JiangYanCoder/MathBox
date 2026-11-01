@@ -8,6 +8,7 @@
  */
 
 import { App, Notice, PluginSettingTab, Setting } from 'obsidian';
+import type { SettingDefinition, SettingDefinitionItem } from 'obsidian';
 import {
 	PANEL_MIN_HEIGHT,
 	PANEL_MIN_WIDTH,
@@ -311,6 +312,231 @@ export class MathBoxSettingTab extends PluginSettingTab {
 
 		addHeading(containerEl, t('settings.aboutSection'));
 		new Setting(containerEl).setName(t('panel.title')).setDesc(t('settings.aboutDesc'));
+	}
+
+	// ------------------------------------------------------------ 声明式设置（Obsidian 1.13+）
+
+	/**
+	 * 声明式设置定义（社区审查要求）：让本插件的设置出现在 Obsidian 1.13.0+ 的
+	 * **用户设置搜索**中，并由宿主按定义渲染。
+	 *
+	 * · 旧版本宿主（< 1.13）不会调用本方法，仍走上方 `display()`，行为不变；
+	 * · 本方法与 `display()` **共用同一套 i18n 文案与设置字段**，改字段时两处同步；
+	 * · 值的读写统一走 `getControlValue` / `setControlValue`，落盘与副作用集中在那里。
+	 */
+	getSettingDefinitions(): SettingDefinitionItem[] {
+		const t = this.plugin.translator;
+		const lang = this.plugin.lang;
+		const statusText =
+			this.plugin.extensionMode === 'preload'
+				? t('settings.extStatusPreload')
+				: this.plugin.extensionMode === 'postload'
+					? t('settings.extStatusPostload')
+					: t('settings.extStatusNone');
+
+		const extensionItems: SettingDefinition[] = [
+			{ name: t('settings.extDesc'), searchable: false },
+			{ name: t('settings.extNaming'), searchable: false },
+			...EXTENSION_PACKAGES.map(
+				(pkg): SettingDefinition => ({
+					name: pkg.name[lang],
+					desc: pkg.desc[lang],
+					control: { type: 'toggle', key: `extensions.${pkg.id}` },
+				}),
+			),
+			{ name: statusText, searchable: false },
+		];
+
+		return [
+			{
+				type: 'group',
+				items: [
+					{
+						name: t('settings.lang'),
+						desc: t('settings.langDesc'),
+						control: {
+							type: 'dropdown',
+							key: 'lang',
+							options: {
+								auto: t('settings.langAuto'),
+								zh: t('settings.langZh'),
+								en: t('settings.langEn'),
+							},
+						},
+					},
+					{
+						name: t('settings.layoutSection'),
+						desc: t('settings.layoutDesc'),
+						action: () => {
+							void this.resetLayout();
+						},
+					},
+				],
+			},
+			{
+				type: 'group',
+				heading: t('settings.fontSection'),
+				items: [
+					{
+						name: t('settings.previewFontSize'),
+						desc: t('settings.previewFontSizeDesc'),
+						control: {
+							type: 'number',
+							key: 'previewFontSize',
+							min: PREVIEW_FONT_SIZE.min,
+							max: PREVIEW_FONT_SIZE.max,
+							step: 1,
+						},
+					},
+					{
+						name: t('settings.editorFontSize'),
+						desc: t('settings.editorFontSizeDesc'),
+						control: {
+							type: 'number',
+							key: 'editorFontSize',
+							min: EDITOR_FONT_SIZE.min,
+							max: EDITOR_FONT_SIZE.max,
+							step: 1,
+						},
+					},
+				],
+			},
+			{
+				type: 'group',
+				heading: t('settings.insertSection'),
+				items: [
+					{
+						name: t('settings.expandMacros'),
+						desc: t('settings.expandMacrosDesc'),
+						control: { type: 'toggle', key: 'expandMacros' },
+					},
+					{
+						name: t('settings.compactDisplay'),
+						desc: t('settings.compactDisplayDesc'),
+						control: { type: 'toggle', key: 'compactDisplay' },
+					},
+					{
+						name: t('settings.exportBackground'),
+						desc: t('settings.exportBackgroundDesc'),
+						control: {
+							type: 'dropdown',
+							key: 'exportBackground',
+							options: {
+								white: t('settings.exportBackgroundWhite'),
+								transparent: t('settings.exportBackgroundTransparent'),
+							},
+						},
+					},
+				],
+			},
+			{
+				type: 'group',
+				heading: t('settings.extSection'),
+				items: extensionItems,
+			},
+			{
+				type: 'group',
+				heading: t('settings.favSection'),
+				items: [
+					{ name: t('settings.favCount', { n: this.plugin.settings.favorites.length }), searchable: false },
+					{
+						name: t('settings.favExport'),
+						action: () => this.exportFavorites(),
+					},
+					{
+						name: t('settings.favImport'),
+						action: () => {
+							void this.importFavorites();
+						},
+					},
+					{
+						name: t('settings.favClear'),
+						desc: t('settings.favClearDesc'),
+						action: () => {
+							new ConfirmModal(this.app, {
+								title: t('settings.confirmTitle'),
+								message: t('settings.favClearConfirm'),
+								okText: t('common.ok'),
+								cancelText: t('common.cancel'),
+								onConfirm: () => {
+									this.plugin.setFavorites([]);
+									new Notice(t('settings.favCleared'));
+									this.refreshDeclarativeView();
+								},
+							}).open();
+						},
+					},
+				],
+			},
+			{
+				type: 'group',
+				heading: t('settings.aboutSection'),
+				items: [{ name: t('panel.title'), desc: t('settings.aboutDesc') }],
+			},
+		];
+	}
+
+	/** 声明式控件读值：统一从 `plugin.settings` 取 */
+	override getControlValue(key: string): unknown {
+		return (this.plugin.settings as unknown as Record<string, unknown>)[key];
+	}
+
+	/**
+	 * 重渲染声明式设置视图（`SettingTab.update`，1.13+ 才有）。
+	 *
+	 * `setControlValue` 只会被 1.13+ 的声明式框架调用，`update` 此时必然存在；
+	 * 但 lint 的 no-unsupported-api 规则按 minAppVersion=1.5.0 静态判定，直接调用会报错，
+	 * 故走能力探测别名。
+	 */
+	private refreshDeclarativeView(): void {
+		const maybeUpdate = (this as unknown as { update?: () => void }).update;
+		if (typeof maybeUpdate === 'function') maybeUpdate.call(this);
+	}
+
+	/**
+	 * 声明式控件写值：归一化 → 写内存 → 落盘 → 副作用。
+	 * 键名即设置字段名（扩展包为 `extensions.<id>`），与 data.json 字段一一对应。
+	 */
+	override setControlValue(key: string, value: unknown): void {
+		const t = this.plugin.translator;
+		const lang = this.plugin.lang;
+		const s = this.plugin.settings as unknown as Record<string, unknown>;
+
+		if (key === 'lang') {
+			if (value === 'auto' || value === 'zh' || value === 'en') s.lang = value;
+			void this.plugin.saveSettings();
+			this.plugin.applyLanguage();
+			this.refreshDeclarativeView(); // 语言变了，全部标签需按新文案重渲染
+			return;
+		}
+		if (key === 'previewFontSize') {
+			s.previewFontSize = normalizeFontSize(value, PREVIEW_FONT_SIZE);
+			void this.plugin.saveSettings();
+			return;
+		}
+		if (key === 'editorFontSize') {
+			s.editorFontSize = normalizeFontSize(value, EDITOR_FONT_SIZE);
+			void this.plugin.saveSettings();
+			return;
+		}
+		if (key.startsWith('extensions.')) {
+			const id = key.slice('extensions.'.length);
+			const pkg = EXTENSION_PACKAGES.find((p) => p.id === id);
+			s.extensions = { ...this.plugin.settings.extensions, [id]: value === true };
+			void this.plugin.saveSettings();
+			this.plugin.installExtensions();
+			if (pkg) {
+				new Notice(
+					value === true
+						? t('settings.extEnabled', { name: pkg.name[lang] })
+						: t('settings.extDisabled', { name: pkg.name[lang] }),
+					3000,
+				);
+			}
+			return;
+		}
+		s[key] = value;
+		void this.plugin.saveSettings();
 	}
 
 	/**

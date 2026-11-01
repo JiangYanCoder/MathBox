@@ -2,27 +2,15 @@
  * 剪贴板与文件下载工具
  */
 
-/** 复制文本到剪贴板；失败时回退到 execCommand */
+/**
+ * 复制文本到剪贴板。
+ * 只走 `navigator.clipboard`（Obsidian 桌面端为安全上下文，恒可用）；
+ * 不再做 `execCommand` 回退——该 API 已被 MDN 弃用，社区审查明确要求移除。
+ */
 export async function copyToClipboard(text: string): Promise<boolean> {
 	try {
 		await navigator.clipboard.writeText(text);
 		return true;
-	} catch {
-		return legacyCopy(text);
-	}
-}
-
-function legacyCopy(text: string): boolean {
-	try {
-		const ta = createEl('textarea');
-		ta.value = text;
-		ta.setAttribute('readonly', '');
-		ta.setCssProps({ position: 'fixed', top: '-1000px', opacity: '0' });
-		document.body.appendChild(ta);
-		ta.select();
-		const ok = document.execCommand('copy');
-		document.body.removeChild(ta);
-		return ok;
 	} catch {
 		return false;
 	}

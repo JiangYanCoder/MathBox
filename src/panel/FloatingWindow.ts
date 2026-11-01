@@ -40,12 +40,10 @@ export class FloatingWindow {
 
 	constructor(app: App) {
 		this.app = app;
-		this.containerEl = document.createElement('div');
-		this.containerEl.className = 'mathbox-win-root';
-		this.modalEl = document.createElement('div');
-		this.modalEl.className = 'modal mathbox-modal';
-		this.contentEl = document.createElement('div');
-		this.contentEl.className = 'modal-content';
+		// 用宿主注入的 createEl（而非 document.createElement）：社区审查的 prefer-create-el 规则
+		this.containerEl = createEl('div', { cls: 'mathbox-win-root' });
+		this.modalEl = createEl('div', { cls: 'modal mathbox-modal' });
+		this.contentEl = createEl('div', { cls: 'modal-content' });
 		this.modalEl.appendChild(this.contentEl);
 		this.containerEl.appendChild(this.modalEl);
 	}

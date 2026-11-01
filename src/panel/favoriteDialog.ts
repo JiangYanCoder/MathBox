@@ -61,16 +61,13 @@ export class PromptModal extends Modal {
 			makeEl('span', { cls: 'mathbox-prompt-field-label', text: groupOptions.label, parent: field });
 			groupSelect = makeEl('select', { cls: 'mathbox-prompt-select', parent: field });
 			for (const option of groupOptions.options) {
-				const opt = document.createElement('option');
-				opt.value = option.value;
-				opt.textContent = option.label;
-				groupSelect.appendChild(opt);
+				groupSelect.createEl('option', { text: option.label, attr: { value: option.value } });
 			}
 			if (groupOptions.allowCreate) {
-				const opt = document.createElement('option');
-				opt.value = NEW_GROUP_VALUE;
-				opt.textContent = groupOptions.createLabel ?? '＋ 新建分组…';
-				groupSelect.appendChild(opt);
+				groupSelect.createEl('option', {
+					text: groupOptions.createLabel ?? '＋ 新建分组…',
+					attr: { value: NEW_GROUP_VALUE },
+				});
 			}
 			if (groupOptions.value) groupSelect.value = groupOptions.value;
 

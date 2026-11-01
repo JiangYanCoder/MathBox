@@ -582,6 +582,14 @@ export class PluginSettingTab {
 
 /* --------------------------------- 宿主能力 --------------------------------- */
 
+/**
+ * 网络请求替身：e2e 无网络，字体内联（exporter/svg 的 requestUrl 路径）按「不可达」
+ * 处理 —— 与旧行为一致（此前全局 fetch 对 app:// 资源同样失败后静默降级）。
+ */
+export function requestUrl(): never {
+	throw new Error('[e2e-stub] requestUrl 不可用，字体按缺失降级');
+}
+
 export const moment = {
 	locale: (): string => 'zh-cn',
 };

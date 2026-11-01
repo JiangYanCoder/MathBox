@@ -218,11 +218,16 @@ export async function renderSymbolsLazy(
 				if (!entry.isIntersecting) continue;
 				const host = entry.target;
 				lazyObserver?.unobserve(host);
-				if (host instanceof HTMLElement && paintOne(host)) changed += 1;
+				// 跨窗口安全判定（popout 窗口的 HTMLElement 与主窗口类不同源），
+				// 宿主在 Node 原型上注入了 instanceOf，等价于 instanceof 但可跨文档
+				if (host.instanceOf(HTMLElement) && paintOne(host)) changed += 1;
 			}
 			if (changed > 0) void finishRenderMath();
 		},
-		{ root: scrollRoot instanceof HTMLElement ? scrollRoot : null, rootMargin: '120px 0px' },
+		{
+			root: scrollRoot?.instanceOf(HTMLElement) ? scrollRoot : null,
+			rootMargin: '120px 0px',
+		},
 	);
 	for (const host of rest) lazyObserver.observe(host);
 }

@@ -73,10 +73,7 @@ export class MatrixSizeModal extends Modal {
 		makeEl('span', { text: this.options.envLabel, parent: envField });
 		const envSelect = makeEl('select', { cls: 'mathbox-matrix-select', parent: envField });
 		for (const env of MATRIX_ENVS) {
-			const opt = document.createElement('option');
-			opt.value = env;
-			opt.textContent = `\\begin{${env}}`;
-			envSelect.appendChild(opt);
+			envSelect.createEl('option', { text: `\\begin{${env}}`, attr: { value: env } });
 		}
 		envSelect.value = this.options.defaultEnv;
 

@@ -6,22 +6,26 @@
 
 /* ====================== 独立浮动窗口（v3.2 底层改动） ====================== */
 /* 面板不再继承宿主 Modal：自建窗口挂 document.body，以 fixed 相对视口定位，
- * 尺寸 / 层级 / 最小化 / 最大化 / 置顶全部自主；
- * 挂载根 .mathbox-win-root 用 display:contents，不产生盒模型、不拦截面板外的点击。 */
-
+ * 尺寸 / 层级 / 最小化 / 最大化 / 置顶全部自主。
+ * 挂载根 .mathbox-win-root 不参与命中测试（pointer-events: none），
+ * 交互全部由内层的 .mathbox-modal 接管；不用 display:contents（社区审查：
+ * Obsidian 1.4.5 的引擎仅部分支持，改用 pointer-events 达到同样效果）。 */
 .mathbox-win-root {
-	display: contents;
+	pointer-events: none;
 }
 
-/* 位置与尺寸由面板 JS 以内联样式写入（可拖动 / 可缩放），此处仅作兜底 */
+.mathbox-win-root > .mathbox-modal {
+	pointer-events: auto;
+}
 
+/* 位置与尺寸由面板 JS 以内联样式写入（可拖动 / 可缩放），此处仅作兜底。
+ * 宿主 .modal 自带 max-width / max-height 约束；元素同时挂 .modal 与 .mathbox-modal
+ * 两个类，用双类选择器（特异性 0,2,0）压过宿主单类规则，无需 !important。 */
 .mathbox-modal {
 	position: fixed;
 	z-index: var(--layer-modal, 50);
 	width: min(1120px, 94vw);
 	height: min(780px, 90vh);
-	max-width: none !important;
-	max-height: none !important;
 	margin: 0;
 	padding: 0;
 	border: 1px solid var(--background-modifier-border);
@@ -30,20 +34,26 @@
 	overflow: hidden;
 }
 
-/* 置顶（固定窗口）：层级抬到 notice 之上，压过其他弹层 */
-/* 最大化：铺满整个屏幕（含 modal-container 的留白区域） */
-.mathbox-modal.is-maximized {
-	left: 0 !important;
-	top: 0 !important;
-	width: 100vw !important;
-	height: 100vh !important;
+.mathbox-modal.modal {
+	max-width: none;
+	max-height: none;
+}
+
+/* 最大化：铺满整个屏幕（含 modal-container 的留白区域）。
+ * JS 在进入最大化时已移除内联几何，三 类选择器（0,3,0）足以压过宿主与主题的 .modal 规则 */
+.mathbox-modal.modal.is-maximized {
+	left: 0;
+	top: 0;
+	width: 100vw;
+	height: 100vh;
 	border-radius: 0;
 }
 
-/* 最小化：折叠为仅顶栏（高度收缩由 JS 写入 height:auto 并配合 !important 兜底） */
-.mathbox-modal.is-minimized {
-	height: auto !important;
-	min-height: 0 !important;
+/* 最小化：折叠为仅顶栏。内联几何由 JS 在折叠时改写为 height:auto / min-height:0
+ * （见 MathBoxModal.toggleMinimize），CSS 只负责配合，不再用 !important 反压内联样式 */
+.mathbox-modal.modal.is-minimized {
+	height: auto;
+	min-height: 0;
 }
 
 .mathbox-modal.is-minimized .mathbox-body,
@@ -51,18 +61,18 @@
 	display: none;
 }
 
-/* Obsidian 原生头部与自绘顶栏冲突（JS 侧已在 buildUi 中移除节点，
- * 此处 !important 兜底防主题强行还原）：
+/* Obsidian 原生头部与自绘顶栏冲突（JS 侧已在 buildUi 中移除节点，此处按类隐藏兜底）：
  *  · 1.14+ 关闭按钮为 .modal-header-button（旧版 .modal-close-button），
  *    绝对定位右上角 + z-index --layer-modal，会压盖顶栏按钮组；
- *  · 1.14+ 标题外的 .modal-header 横条容器，空标题时呈现为异色横线区域 */
-.mathbox-modal .modal-header-button,
-.mathbox-modal .modal-close-button {
-	display: none !important;
+ *  · 1.14+ 标题外的 .modal-header 横条容器，空标题时呈现为异色横线区域。
+ * 三层类选择器（0,3,0）压过宿主单类与绝大多数主题规则，无需 !important */
+.mathbox-win-root .mathbox-modal .modal-header-button,
+.mathbox-win-root .mathbox-modal .modal-close-button {
+	display: none;
 }
 
-.mathbox-modal .modal-header {
-	display: none !important;
+.mathbox-win-root .mathbox-modal .modal-header {
+	display: none;
 }
 
 .mathbox-modal .mathbox-title-hidden {
@@ -274,14 +284,15 @@ body.mathbox-dragging .mathbox-topbar {
 	height: 100%;
 }
 
+/* 停靠模式：几何交给宿主容器，双类选择器（0,2,0）压过宿主 .modal 规则，无需 !important */
 .mathbox-win-docked > .mathbox-modal {
 	position: relative;
-	left: auto !important;
-	top: auto !important;
-	width: 100% !important;
-	height: 100% !important;
-	max-width: 100% !important;
-	max-height: 100% !important;
+	left: auto;
+	top: auto;
+	width: 100%;
+	height: 100%;
+	max-width: 100%;
+	max-height: 100%;
 	border: 0;
 	border-radius: 0;
 	box-shadow: none;
@@ -760,7 +771,8 @@ body.mathbox-resizing {
 	overflow-y: hidden;
 	white-space: nowrap;
 	border-bottom: 1px solid var(--background-modifier-border);
-	scrollbar-width: thin;
+	/* 细滚动条由下方的 ::-webkit-scrollbar 规则实现（Obsidian 桌面端为 Chromium，
+	 * 社区审查指出 scrollbar-width 标准属性在其引擎上仅部分支持，故不用） */
 }
 
 .mathbox-side-chips[hidden] {
@@ -1000,8 +1012,11 @@ body.mathbox-resizing {
 	overflow: visible;
 }
 
-.mathbox-symbol .mathbox-formula.is-rendered > mjx-container {
-	margin: 0 !important;
+/* MathJax 的 display 边距规则为 mjx-container[jax="CHTML"][display="true"]（0,2,1），
+ * 此处四层类 + 属性选择器（0,4,0）稳压之，无需 !important。
+ * 用属性选择器 [jax="CHTML"] 而非类型选择器 mjx-container（社区审查：未知类型选择器） */
+.mathbox-modal .mathbox-symbol .mathbox-formula.is-rendered > [jax="CHTML"] {
+	margin: 0;
 }
 
 /* 分式与矩阵的渲染结果纵向更高（分数上下两行、矩阵多行 + 括号），
@@ -1218,9 +1233,11 @@ body.theme-dark .mathbox-fav-item:hover .mathbox-fav-latex {
 	word-break: normal;
 }
 
-/* 宿主 CHTML 块级容器自带 1em 上下外边距；预览区已有内边距，归零避免过高 */
-.mathbox-formula.is-rendered > mjx-container {
-	margin: 0 !important;
+/* 宿主 CHTML 块级容器自带 1em 上下外边距；预览区已有内边距，归零避免过高。
+ * 特异性（0,4,0）稳压 MathJax 的 display 边距规则（0,2,1），无需 !important；
+ * 属性选择器同时规避「未知类型选择器 mjx-container」的审查警告 */
+.mathbox-modal .mathbox-formula.is-rendered > [jax="CHTML"] {
+	margin: 0;
 }
 
 /* ===== 分组管理弹窗（删除分组） ===== */

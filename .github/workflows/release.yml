@@ -23,8 +23,13 @@ on:
                 required: false
                 default: false
 
+# 工件认证（社区审查要求）：main.js / styles.css 需带 build provenance，
+# 用户可用 `gh attestation verify` 验证「资产确由本仓库源码构建」。
+# id-token + attestations 是 actions/attest-build-provenance 签名所需的最低权限。
 permissions:
     contents: write
+    id-token: write
+    attestations: write
 
 jobs:
     release:
@@ -95,6 +100,17 @@ jobs:
                   printf '  %s\n' main.js manifest.json styles.css
                   du -h main.js manifest.json styles.css
 
+            # ---------- 3.5 工件认证（build provenance，社区审查要求）----------
+            # 为 main.js / styles.css 生成可验证的构建来源证明（sigstore 签名），
+            # 用户可用 `gh attestation verify <文件> -R JiangYanCoder/MathBox` 验证
+            # 「资产确由本仓库源码构建」。manifest.json 由仓库直接维护（非构建产物），不参与认证。
+            - name: 生成构建工件认证
+              uses: actions/attest-build-provenance@v2
+              with:
+                  subject-path: |
+                      main.js
+                      styles.css
+
             # ---------- 4. 生成 Release 说明（tag 说明作为 release body）----------
             - name: 生成 release body
               id: notes
@@ -115,7 +131,7 @@ jobs:
                     echo "### 安装"
                     echo
                     echo "1. 下载下方 \`main.js\`、\`manifest.json\`、\`styles.css\` 三个文件"
-                    echo "2. 在 vault 的 \`<vault>/.obsidian/plugins/obsidian-math-box/\` 创建同名文件夹"
+                    echo "2. 在 vault 的 \`<vault>/.obsidian/plugins/math-box/\` 创建同名文件夹（旧版用户请把原 obsidian-math-box 文件夹**重命名**为 math-box，设置与收藏随文件夹保留）"
                     echo "   （文件夹名必须与 \`manifest.json\` 的 \`id\` 完全一致）"
                     echo "3. 把三个文件放入该文件夹"
                     echo "4. 重启 Obsidian，或在「第三方插件」中重新开启 MathBox"

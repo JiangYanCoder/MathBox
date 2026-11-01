@@ -130,12 +130,12 @@ export function registerCommands(plugin: MathBoxPlugin): void {
 		),
 	);
 
-	// 入口 3：命令面板 + 快捷键
-	// 依设计文档 §2 提供默认 Ctrl/Cmd+M；在「设置 → 快捷键」中可改绑或清除
+	// 入口 3：命令面板
+	// 社区审查要求：**不提供默认热键**——默认键位可能与用户已有配置或宿主内置快捷键冲突；
+	// 需要快捷键的用户在「设置 → 快捷键」中自行绑定
 	plugin.addCommand({
 		id: 'open',
 		name: plugin.t('command.openPanel'),
-		hotkeys: [{ modifiers: ['Mod'], key: 'M' }],
 		editorCallback: (editor: Editor) => {
 			expandToFormula(editor);
 			plugin.openPanel({

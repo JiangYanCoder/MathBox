@@ -85,7 +85,7 @@ async function main(): Promise<void> {
 	const app = new App();
 	// 视图替身需要拿到 App 实例（真实宿主会注入）
 	(globalThis as unknown as { __app?: unknown }).__app = app;
-	const plugin = new MathBoxPlugin(app as never, { id: 'obsidian-math-box' } as never);
+	const plugin = new MathBoxPlugin(app as never, { id: 'math-box' } as never);
 	await plugin.onload();
 
 	const s = plugin.settings;

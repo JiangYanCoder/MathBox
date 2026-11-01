@@ -20,6 +20,8 @@
  * 与笔记内的观感只能逼近、无法保证逐像素一致，缩放也受快照限制。
  */
 
+import { requestUrl } from 'obsidian';
+
 import {
 	applyFontFaces,
 	extractFontFaces,
@@ -120,13 +122,15 @@ async function fetchAsDataUri(url: string): Promise<string | null> {
 	const cached = fontDataCache.get(url);
 	if (cached) return cached;
 	try {
-		const response = await fetch(url);
-		if (!response.ok) return null;
-		const dataUri = `data:${mimeOf(url)};base64,${toBase64(await response.arrayBuffer())}`;
+		// 社区审查要求：用宿主内置的 requestUrl 取代全局 fetch（app:// 资源也可读取）；
+		// throw:false 让非 2xx 不抛错，统一走下面的 status 判断
+		const response = await requestUrl({ url, method: 'GET', throw: false });
+		if (response.status !== 200) return null;
+		const dataUri = `data:${mimeOf(url)};base64,${toBase64(response.arrayBuffer)}`;
 		fontDataCache.set(url, dataUri);
 		return dataUri;
 	} catch {
-		// app:// 在部分环境不可 fetch —— 静默降级，由调用方按 missing 计数提示
+		// app:// 在部分环境不可达 —— 静默降级，由调用方按 missing 计数提示
 		return null;
 	}
 }
